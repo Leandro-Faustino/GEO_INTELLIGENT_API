@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="260" viewBox="0 0 980 260" role="img" aria-labelledby="title desc">
+  <title id="title">Cobertura OWASP API Security Top 10 implementada</title>
+  <desc id="desc">Cartoes de cobertura para API1, API2, API3, API4, API5, API7 e API8.</desc>
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .card { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 2; }
+      .code { fill: #1d4ed8; font: 800 24px Arial, sans-serif; }
+      .label { fill: #0f172a; font: 700 15px Arial, sans-serif; }
+      .small { fill: #475569; font: 13px Arial, sans-serif; }
+      .ok { fill: #059669; }
+      .title { fill: #0f172a; font: 700 24px Arial, sans-serif; }
+    </style>
+  </defs>
+  <rect class="bg" width="980" height="260"/>
+  <text class="title" x="34" y="42">Cobertura automatizada de ataques</text>
+  <text class="small" x="34" y="66">23 testes reproduzem ataques do livro e validam que a defesa corta o vetor esperado.</text>
+
+  <g transform="translate(34 96)">
+    <rect class="card" width="120" height="118" rx="8"/>
+    <circle class="ok" cx="26" cy="28" r="10"/>
+    <text class="code" x="45" y="36">API1</text>
+    <text class="label" x="18" y="72">BOLA</text>
+    <text class="small" x="18" y="96">ownership</text>
+  </g>
+  <g transform="translate(168 96)">
+    <rect class="card" width="120" height="118" rx="8"/>
+    <circle class="ok" cx="26" cy="28" r="10"/>
+    <text class="code" x="45" y="36">API2</text>
+    <text class="label" x="18" y="72">Auth</text>
+    <text class="small" x="18" y="96">JWT forte</text>
+  </g>
+  <g transform="translate(302 96)">
+    <rect class="card" width="120" height="118" rx="8"/>
+    <circle class="ok" cx="26" cy="28" r="10"/>
+    <text class="code" x="45" y="36">API3</text>
+    <text class="label" x="18" y="72">BOPLA</text>
+    <text class="small" x="18" y="96">schema strict</text>
+  </g>
+  <g transform="translate(436 96)">
+    <rect class="card" width="120" height="118" rx="8"/>
+    <circle class="ok" cx="26" cy="28" r="10"/>
+    <text class="code" x="45" y="36">API4</text>
+    <text class="label" x="18" y="72">Flood</text>
+    <text class="small" x="18" y="96">rate-limit</text>
+  </g>
+  <g transform="translate(570 96)">
+    <rect class="card" width="120" height="118" rx="8"/>
+    <circle class="ok" cx="26" cy="28" r="10"/>
+    <text class="code" x="45" y="36">API5</text>
+    <text class="label" x="18" y="72">BFLA</text>
+    <text class="small" x="18" y="96">RBAC</text>
+  </g>
+  <g transform="translate(704 96)">
+    <rect class="card" width="120" height="118" rx="8"/>
+    <circle class="ok" cx="26" cy="28" r="10"/>
+    <text class="code" x="45" y="36">API7</text>
+    <text class="label" x="18" y="72">SSRF</text>
+    <text class="small" x="18" y="96">allow-list</text>
+  </g>
+  <g transform="translate(838 96)">
+    <rect class="card" width="120" height="118" rx="8"/>
+    <circle class="ok" cx="26" cy="28" r="10"/>
+    <text class="code" x="45" y="36">API8</text>
+    <text class="label" x="18" y="72">Injection</text>
+    <text class="small" x="18" y="96">guard + headers</text>
+  </g>
+</svg>

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="320" viewBox="0 0 980 320" role="img" aria-labelledby="title desc">
+  <title id="title">Fluxo das defesas de segurança da API</title>
+  <desc id="desc">Diagrama mostrando request, validação de borda, autenticação, autorização, lógica de rota e resposta segura.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .lane { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; }
+      .title { fill: #0f172a; font: 700 24px Arial, sans-serif; }
+      .label { fill: #0f172a; font: 700 17px Arial, sans-serif; }
+      .small { fill: #475569; font: 14px Arial, sans-serif; }
+      .arrow { stroke: #2563eb; stroke-width: 3; marker-end: url(#arrow); fill: none; }
+      .good { fill: #ecfdf5; stroke: #059669; }
+      .warn { fill: #fff7ed; stroke: #ea580c; }
+      .blue { fill: #eff6ff; stroke: #2563eb; }
+      .red { fill: #fef2f2; stroke: #dc2626; }
+    </style>
+  </defs>
+  <rect class="bg" width="980" height="320" rx="0"/>
+  <text class="title" x="40" y="44">Pipeline de defesa em profundidade</text>
+  <text class="small" x="40" y="72">Cada etapa corta uma classe de ataque antes que dados sensíveis ou funções privilegiadas sejam expostos.</text>
+
+  <rect class="lane blue" x="40" y="120" width="140" height="92" rx="8"/>
+  <text class="label" x="70" y="154">Request</text>
+  <text class="small" x="62" y="178">payload, URL,</text>
+  <text class="small" x="68" y="198">headers</text>
+
+  <path class="arrow" d="M 190 166 H 250"/>
+
+  <rect class="lane warn" x="260" y="110" width="150" height="112" rx="8"/>
+  <text class="label" x="292" y="144">Borda</text>
+  <text class="small" x="285" y="168">Ajv schemas</text>
+  <text class="small" x="284" y="188">NoSQL guard</text>
+  <text class="small" x="284" y="208">rate-limit</text>
+
+  <path class="arrow" d="M 420 166 H 480"/>
+
+  <rect class="lane blue" x="490" y="110" width="150" height="112" rx="8"/>
+  <text class="label" x="522" y="144">Identidade</text>
+  <text class="small" x="516" y="168">JWT HS256</text>
+  <text class="small" x="514" y="188">segredo forte</text>
+  <text class="small" x="527" y="208">expiracao</text>
+
+  <path class="arrow" d="M 650 166 H 710"/>
+
+  <rect class="lane good" x="720" y="110" width="150" height="112" rx="8"/>
+  <text class="label" x="752" y="144">Autorizacao</text>
+  <text class="small" x="746" y="168">ownership</text>
+  <text class="small" x="760" y="188">RBAC</text>
+  <text class="small" x="738" y="208">allow-list SSRF</text>
+
+  <path class="arrow" d="M 795 226 V 260 H 150 V 226" marker-end="url(#arrow)"/>
+  <rect class="lane red" x="340" y="252" width="300" height="46" rx="8"/>
+  <text class="label" x="408" y="282">Resposta segura: 400 / 401 / 403 / 429</text>
+</svg>
