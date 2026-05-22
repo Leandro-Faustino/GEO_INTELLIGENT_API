@@ -90,6 +90,9 @@ services:
       MONGO_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME:-geolead}:${MONGO_INITDB_ROOT_PASSWORD:-local-mongo-password-change-me}@mongo:27017/${MONGO_INITDB_DATABASE:-geolead}?authSource=admin
       REDIS_URL: redis://redis:6379
       CACHE_TTL_SECONDS: "3600"
+      METRICS_ENABLED: "true"
+      TRACING_ENABLED: ${TRACING_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
     depends_on:
       postgres:
         condition: service_healthy

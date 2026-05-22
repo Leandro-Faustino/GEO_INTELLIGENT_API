@@ -93,6 +93,18 @@ export const envSchema = {
       type: 'integer',
       default: 3600,
     },
+    METRICS_ENABLED: {
+      type: 'boolean',
+      default: true,
+    },
+    TRACING_ENABLED: {
+      type: 'boolean',
+      default: false,
+    },
+    OTEL_EXPORTER_OTLP_ENDPOINT: {
+      type: 'string',
+      default: 'http://localhost:4318/v1/traces',
+    },
     SWAGGER_ENABLED: {
       type: 'boolean',
       default: true,
@@ -124,5 +136,8 @@ export interface AppConfig {
   MONGO_URL: string
   REDIS_URL: string
   CACHE_TTL_SECONDS: number
+  METRICS_ENABLED: boolean
+  TRACING_ENABLED: boolean
+  OTEL_EXPORTER_OTLP_ENDPOINT: string
   SWAGGER_ENABLED: boolean
 }

@@ -1,3 +1,7 @@
+import { startTracing } from './configs/tracing.js'
+
+startTracing()
+
 import Fastify from 'fastify'
 import closeWithGrace from 'close-with-grace'
 import app, { buildServerOptions } from './app.js'
@@ -82,7 +86,6 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   // Falha catastrófica antes do logger estar disponível.
-  // eslint-disable-next-line no-console
   console.error('Falha fatal no bootstrap:', err)
   process.exit(1)
 })

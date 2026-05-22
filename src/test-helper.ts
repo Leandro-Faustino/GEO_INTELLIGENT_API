@@ -16,6 +16,8 @@ const TEST_ENV: Record<string, string> = {
   CORS_ORIGIN: '',
   DATABASE_URL: '',
   REDIS_URL: '',
+  METRICS_ENABLED: 'true',
+  TRACING_ENABLED: 'false',
   SWAGGER_ENABLED: 'false',
 }
 

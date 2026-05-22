@@ -40,6 +40,10 @@ const appPlugin: FastifyPluginAsync = async (fastify): Promise<void> => {
     matchFilter: (path) => /loader\.(js|ts)$/.test(path),
   })
 
+  fastify.addHook('onSend', async (request, reply) => {
+    reply.header('x-request-id', request.id)
+  })
+
   // ── 3. Rotas ────────────────────────────────────────────────
   // Carrega apenas arquivos *.routes.ts; demais são utilitários.
   await fastify.register(AutoLoad, {
@@ -122,6 +126,8 @@ export function buildServerOptions(): FastifyServerOptions {
     },
     onProtoPoisoning: 'error',
     onConstructorPoisoning: 'error',
+    requestIdHeader: 'x-request-id',
+    requestIdLogLabel: 'reqId',
     // Roteamento case-sensitive: evita ambiguidade de matching de paths.
     routerOptions: {
       caseSensitive: true,
