@@ -14,6 +14,9 @@ const TEST_ENV: Record<string, string> = {
   RATE_LIMIT_WINDOW: '1 minute',
   LOGIN_RATE_LIMIT_MAX: '1000',
   CORS_ORIGIN: '',
+  DATABASE_URL: '',
+  REDIS_URL: '',
+  SWAGGER_ENABLED: 'false',
 }
 
 export async function buildTestApp(overrides: Record<string, string> = {}) {

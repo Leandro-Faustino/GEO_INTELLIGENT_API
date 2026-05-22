@@ -19,22 +19,33 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
  * via `fastify.inject()` sem abrir portas de rede, enquanto o server.ts
  * cuida apenas de escutar e do shutdown gracioso.
  *
- * Ordem de autoload (determinística): plugins primeiro, rotas depois.
- * Inverter causaria erro, pois rotas dependem de decorators dos plugins.
+ * Ordem de autoload (determinística): plugins → schemas → rotas.
+ * Inverter causaria erro, pois rotas dependem de decorators dos plugins
+ * e de schemas registrados previamente via addSchema().
  */
 const appPlugin: FastifyPluginAsync = async (fastify): Promise<void> => {
-  // ── Plugins (config, segurança, suporte) ────────────────────
+  // ── 1. Plugins (config, segurança, suporte) ─────────────────
   // Prefixo numérico nos arquivos garante ordem de carregamento.
   await fastify.register(AutoLoad, {
     dir: join(__dirname, 'plugins'),
     encapsulate: false,
   })
 
-  // ── Rotas ────────────────────────────────────────────────────
+  // ── 2. Schemas (validação + serialização) ───────────────────
+  // O loader registra os schemas globais antes das rotas para que
+  // handlers possam referenciá-los por $ref em qualquer contexto.
+  await fastify.register(AutoLoad, {
+    dir: join(__dirname, 'schemas'),
+    encapsulate: false,
+    matchFilter: (path) => /loader\.(js|ts)$/.test(path),
+  })
+
+  // ── 3. Rotas ────────────────────────────────────────────────
   // Carrega apenas arquivos *.routes.ts; demais são utilitários.
   await fastify.register(AutoLoad, {
     dir: join(__dirname, 'routes'),
     matchFilter: (path) => /\.routes\.(js|ts)$/.test(path),
+    dirNameRoutePrefix: false,
     autoHooks: true,
     cascadeHooks: true,
   })

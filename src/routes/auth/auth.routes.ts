@@ -1,6 +1,6 @@
 import { type FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
-import { findUserByCredentials } from '../security/user-store.js'
+import { findUserByCredentials } from '../../security/user-store.js'
 
 const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.post(
@@ -13,6 +13,9 @@ const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => 
         },
       },
       schema: {
+        summary: 'Autenticar usuário',
+        description: 'Valida credenciais e retorna um token JWT para acessar rotas protegidas.',
+        tags: ['Autenticação'],
         body: Type.Object(
           {
             email: Type.String({ format: 'email', maxLength: 254 }),
@@ -53,6 +56,10 @@ const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => 
     {
       onRequest: fastify.authenticate,
       schema: {
+        summary: 'Consultar usuário autenticado',
+        description: 'Retorna os claims principais do JWT enviado no header Authorization.',
+        tags: ['Autenticação'],
+        security: [{ bearerAuth: [] }],
         response: {
           200: Type.Object({
             sub: Type.String(),

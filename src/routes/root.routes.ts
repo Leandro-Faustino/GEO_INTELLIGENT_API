@@ -13,6 +13,9 @@ const root: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
     '/',
     {
       schema: {
+        summary: 'Status da API',
+        description: 'Retorna informações básicas para verificar se a API está ativa.',
+        tags: ['Status'],
         response: {
           200: Type.Object({
             name: Type.String(),

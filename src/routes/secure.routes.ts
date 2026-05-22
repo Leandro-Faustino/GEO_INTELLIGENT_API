@@ -9,6 +9,10 @@ const secureRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
     {
       onRequest: fastify.authenticate,
       schema: {
+        summary: 'Consultar documento protegido',
+        description: 'Exemplo de controle de autorização por proprietário do recurso.',
+        tags: ['Segurança'],
+        security: [{ bearerAuth: [] }],
         params: Type.Object(
           { id: Type.String({ maxLength: 64 }) },
           { additionalProperties: false },
@@ -38,24 +42,15 @@ const secureRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
     },
   )
 
-  fastify.get(
-    '/admin/stats',
-    {
-      onRequest: [fastify.authenticate, fastify.requireRole('admin')],
-      schema: {
-        response: {
-          200: Type.Object({ users: Type.Number(), uptime: Type.Number() }),
-        },
-      },
-    },
-    async () => ({ users: 3, uptime: Math.floor(process.uptime()) }),
-  )
-
   fastify.post(
     '/fetch-remote',
     {
       onRequest: fastify.authenticate,
       schema: {
+        summary: 'Validar URL remota',
+        description: 'Exemplo de bloqueio SSRF antes de acessar destinos externos.',
+        tags: ['Segurança'],
+        security: [{ bearerAuth: [] }],
         body: Type.Object(
           { url: Type.String({ maxLength: 2048 }) },
           { additionalProperties: false },

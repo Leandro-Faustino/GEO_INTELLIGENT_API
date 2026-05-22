@@ -61,6 +61,42 @@ export const envSchema = {
       type: 'string',
       default: '15m',
     },
+    DB_ENABLED: {
+      type: 'boolean',
+      default: false,
+    },
+    DATABASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    POSTGRES_URL: {
+      type: 'string',
+      default: '',
+    },
+    POSTGRES_POOL_MAX: {
+      type: 'integer',
+      default: 10,
+    },
+    POSTGRES_SSL: {
+      type: 'boolean',
+      default: false,
+    },
+    MONGO_URL: {
+      type: 'string',
+      default: '',
+    },
+    REDIS_URL: {
+      type: 'string',
+      default: '',
+    },
+    CACHE_TTL_SECONDS: {
+      type: 'integer',
+      default: 3600,
+    },
+    SWAGGER_ENABLED: {
+      type: 'boolean',
+      default: true,
+    },
   },
 } as const
 
@@ -80,4 +116,13 @@ export interface AppConfig {
   LOGIN_RATE_LIMIT_MAX: number
   JWT_SECRET: string
   JWT_EXPIRES_IN: string
+  DB_ENABLED: boolean
+  DATABASE_URL: string
+  POSTGRES_URL: string
+  POSTGRES_POOL_MAX: number
+  POSTGRES_SSL: boolean
+  MONGO_URL: string
+  REDIS_URL: string
+  CACHE_TTL_SECONDS: number
+  SWAGGER_ENABLED: boolean
 }

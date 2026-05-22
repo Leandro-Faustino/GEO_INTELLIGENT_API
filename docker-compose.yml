@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-geolead}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-geolead}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-geolead} -d $${POSTGRES_DB:-geolead}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-geolead}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-local-mongo-password-change-me}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-geolead}
+    ports:
+      - "${MONGO_HOST_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "-u",
+          "${MONGO_INITDB_ROOT_USERNAME:-geolead}",
+          "-p",
+          "${MONGO_INITDB_ROOT_PASSWORD:-local-mongo-password-change-me}",
+          "--authenticationDatabase",
+          "admin",
+          "--eval",
+          "db.adminCommand('ping').ok",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --appendonly no
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_HOST_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      LOG_LEVEL: info
+      JWT_SECRET: ${JWT_SECRET:-local-jwt-secret-change-me-with-at-least-32-chars}
+      JWT_EXPIRES_IN: 15m
+      CORS_ORIGIN: ""
+      RATE_LIMIT_MAX: "100"
+      RATE_LIMIT_WINDOW: 1 minute
+      LOGIN_RATE_LIMIT_MAX: "5"
+      BODY_LIMIT: "1048576"
+      SWAGGER_ENABLED: "true"
+      DB_ENABLED: "true"
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-geolead}:${POSTGRES_PASSWORD:-local-postgres-password-change-me}@postgres:5432/${POSTGRES_DB:-geolead}
+      POSTGRES_POOL_MAX: "10"
+      POSTGRES_SSL: "false"
+      MONGO_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME:-geolead}:${MONGO_INITDB_ROOT_PASSWORD:-local-mongo-password-change-me}@mongo:27017/${MONGO_INITDB_DATABASE:-geolead}?authSource=admin
+      REDIS_URL: redis://redis:6379
+      CACHE_TTL_SECONDS: "3600"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  mongo_data:
