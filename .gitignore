@@ -29,6 +29,8 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Runtime/cache files
+__pycache__/
+*.py[cod]
 .cache/
 .tmp/
 tmp/
@@ -46,3 +48,14 @@ Thumbs.db
 
 # Local handoff/import folders
 files/
+files - adapters/
+files - fase 1 - python/
+files - fase 2 - python/
+files - fase 3 - python/
+files - fase 4 e 5 - python/
+files - fase 6 - python/
+files fase integração/
+files fase 7 e 8 - python/
+files coleta/
+files 123/
+models/

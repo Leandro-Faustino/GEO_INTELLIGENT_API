@@ -85,7 +85,10 @@ export class DerivacaoService {
     for (const [nome, valores] of atributos) {
       const numericos = valores.map((valor) => Number(valor)).filter(Number.isFinite)
 
-      if (numericos.length >= valores.length * 0.8) {
+      if (
+        numericos.length >= valores.length * 0.8 &&
+        !isCodigoCategorico(nome, valores)
+      ) {
         criterios.push({
           nome,
           valorMin: Math.min(...numericos),
@@ -122,4 +125,20 @@ export class DerivacaoService {
 
 function arredondar(valor: number): number {
   return Math.round(valor * 1000) / 1000
+}
+
+function isCodigoCategorico(nome: string, valores: unknown[]): boolean {
+  const nomeNormalizado = nome.toLocaleLowerCase('pt-BR')
+  if (
+    nomeNormalizado.includes('cnae') ||
+    nomeNormalizado.includes('codigo') ||
+    nomeNormalizado.includes('código')
+  ) {
+    return true
+  }
+
+  return valores.some((valor) => {
+    const texto = String(valor).replace(/\D/g, '')
+    return texto.length >= 6
+  })
 }

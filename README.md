@@ -6,6 +6,7 @@ API Fastify + TypeScript com base de segurança, validação de ambiente, rate l
 
 ```bash
 npm install
+python3 -m pip install -r requirements.txt
 cp .env.sample .env
 npm run dev
 ```
@@ -19,7 +20,16 @@ cp .env.docker.example .env
 npm run docker:up
 ```
 
-O `docker-compose.yml` usa variáveis de ambiente com placeholders apenas para desenvolvimento local. Troque todos os valores de senha/segredo no `.env` local. O arquivo `.env` é ignorado pelo Git.
+O `docker-compose.yml` sobe PostgreSQL, MongoDB, Redis, a API Node e o motor Python em FastAPI. A API Node fica em `APP_HOST_PORT` e o motor em `ENGINE_HOST_PORT`. O compose usa variáveis de ambiente com placeholders apenas para desenvolvimento local. Troque todos os valores de senha/segredo no `.env` local. O arquivo `.env` é ignorado pelo Git.
+
+## Motor Python
+
+```bash
+npm run engine:dev
+npm run test:engine
+```
+
+O motor expõe `/health`, `/metrics`, `/docs`, `/derivar`, `/analisar` e `/feedback`. Nesta fase, ele valida contratos, propaga `x-request-id`, expõe métricas Prometheus e mantém pontos de extensão para as próximas fases de derivação, lookalike, conversão e justificativas.
 
 ## Observabilidade
 
@@ -37,6 +47,7 @@ docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
 
 ```bash
 npm test
+npm run test:engine
 npm run lint
 npm run test:unit
 npm run test:integration

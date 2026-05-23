@@ -1,0 +1,18 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+pydantic-settings==2.5.2
+prometheus-client==0.21.0
+httpx==0.27.2
+anyio==4.6.2.post1
+pandas==2.2.3
+numpy==2.1.1
+scipy==1.14.1
+scikit-learn==1.5.2
+joblib==1.4.2
+pytest==8.3.3
+pytest-asyncio==0.24.0
+
+# Optional phase 7 local embeddings provider. Install only when using
+# EMBEDDINGS_PROVIDER=sbert because it pulls torch and large model assets.
+# sentence-transformers==3.1.1

@@ -4,6 +4,7 @@ import { AdaptadorCNPJ } from '../adapters/cnpj.adapter.js'
 import { AdaptadorGeocoder } from '../adapters/geocoder.adapter.js'
 import { AdaptadorIBGE } from '../adapters/ibge.adapter.js'
 import { AdaptadorRegistroImoveis } from '../adapters/registro-imoveis.adapter.js'
+import { ColetaService } from '../services/coleta.service.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -14,6 +15,7 @@ declare module 'fastify' {
       readonly registroImoveis: AdaptadorRegistroImoveis
       readonly todas: readonly IAdaptadorFonte[]
     }
+    readonly coletaService: ColetaService
   }
 }
 
@@ -31,6 +33,7 @@ export default fp(
       registroImoveis,
       todas: [cnpj, ibge, geocoder, registroImoveis] as const,
     })
+    fastify.decorate('coletaService', new ColetaService(cnpj))
 
     fastify.log.info(
       { fontes: [cnpj.nome, ibge.nome, geocoder.nome, registroImoveis.nome] },

@@ -64,6 +64,37 @@ services:
       timeout: 3s
       retries: 10
 
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+    ports:
+      - "${ENGINE_HOST_PORT:-8000}:8000"
+    environment:
+      ENVIRONMENT: production
+      HOST: 0.0.0.0
+      PORT: 8000
+      LOG_LEVEL: info
+      METRICS_ENABLED: "true"
+      REQUEST_ID_HEADER: x-request-id
+      MODEL_VERSION: "0.1.0"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-local-internal-api-key-change-me-32}
+      EMBEDDINGS_ENABLED: ${EMBEDDINGS_ENABLED:-false}
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-api}
+      EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-text-embedding-3-small}
+      HOOKS_LLM_ENABLED: ${HOOKS_LLM_ENABLED:-false}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   app:
     build:
       context: .
@@ -93,12 +124,21 @@ services:
       METRICS_ENABLED: "true"
       TRACING_ENABLED: ${TRACING_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
+      MOTOR_URL: ${MOTOR_URL:-http://engine:8000}
+      MOTOR_API_KEY: ${MOTOR_API_KEY:-local-internal-api-key-change-me-32}
+      MOTOR_TIMEOUT_MS: "10000"
+      EMBEDDINGS_ENABLED: ${EMBEDDINGS_ENABLED:-false}
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-api}
+      EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-text-embedding-3-small}
+      HOOKS_LLM_ENABLED: ${HOOKS_LLM_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy
       mongo:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      engine:
         condition: service_healthy
 
 volumes:

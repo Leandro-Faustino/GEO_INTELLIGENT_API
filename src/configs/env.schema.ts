@@ -109,6 +109,51 @@ export const envSchema = {
       type: 'boolean',
       default: true,
     },
+    ENVIRONMENT: {
+      type: 'string',
+      default: 'development',
+    },
+    ENGINE_HOST_PORT: {
+      type: 'integer',
+      default: 8000,
+    },
+    INTERNAL_API_KEY: {
+      type: 'string',
+      default: 'troque-em-producao-min-32-caracteres!!',
+    },
+    MODEL_VERSION: {
+      type: 'string',
+      default: '0.1.0',
+    },
+    MOTOR_URL: {
+      type: 'string',
+      default: '',
+    },
+    MOTOR_API_KEY: {
+      type: 'string',
+      default: 'troque-em-producao-min-32-caracteres!!',
+    },
+    MOTOR_TIMEOUT_MS: {
+      type: 'integer',
+      default: 10_000,
+    },
+    EMBEDDINGS_ENABLED: {
+      type: 'boolean',
+      default: false,
+    },
+    EMBEDDINGS_PROVIDER: {
+      type: 'string',
+      enum: ['api', 'sbert'],
+      default: 'api',
+    },
+    EMBEDDINGS_MODEL: {
+      type: 'string',
+      default: 'text-embedding-3-small',
+    },
+    HOOKS_LLM_ENABLED: {
+      type: 'boolean',
+      default: false,
+    },
   },
 } as const
 
@@ -140,4 +185,15 @@ export interface AppConfig {
   TRACING_ENABLED: boolean
   OTEL_EXPORTER_OTLP_ENDPOINT: string
   SWAGGER_ENABLED: boolean
+  ENVIRONMENT: string
+  ENGINE_HOST_PORT: number
+  INTERNAL_API_KEY: string
+  MODEL_VERSION: string
+  MOTOR_URL: string
+  MOTOR_API_KEY: string
+  MOTOR_TIMEOUT_MS: number
+  EMBEDDINGS_ENABLED: boolean
+  EMBEDDINGS_PROVIDER: 'api' | 'sbert'
+  EMBEDDINGS_MODEL: string
+  HOOKS_LLM_ENABLED: boolean
 }
