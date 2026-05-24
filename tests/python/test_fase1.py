@@ -26,6 +26,43 @@ def test_health():
     assert response.json()["status"] == "ok"
 
 
+def test_motor_exige_chave_interna_em_producao():
+    import app.main as main
+
+    original_environment = main.settings.environment
+    original_key = main.settings.internal_api_key
+    main.settings.environment = "production"
+    main.settings.internal_api_key = "test-internal-key-with-at-least-32-chars"
+    try:
+        response = request("POST", "/derivar", json={"cliente_id": "c1", "compradores": []})
+
+        assert response.status_code == 401
+    finally:
+        main.settings.environment = original_environment
+        main.settings.internal_api_key = original_key
+
+
+def test_motor_aceita_chave_interna_em_producao():
+    import app.main as main
+
+    original_environment = main.settings.environment
+    original_key = main.settings.internal_api_key
+    main.settings.environment = "production"
+    main.settings.internal_api_key = "test-internal-key-with-at-least-32-chars"
+    try:
+        response = request(
+            "POST",
+            "/derivar",
+            headers={"x-internal-key": "test-internal-key-with-at-least-32-chars"},
+            json={"cliente_id": "c1", "compradores": []},
+        )
+
+        assert response.status_code == 422
+    finally:
+        main.settings.environment = original_environment
+        main.settings.internal_api_key = original_key
+
+
 def test_docs_expostas():
     response = request("GET", "/docs")
 

@@ -1,17 +1,58 @@
-import { BaseAdapter } from './base-adapter.js'
+import { BaseAdapter, type AdapterOptions } from './base-adapter.js'
+
+export interface CnpjAdapterOptions extends AdapterOptions {
+  apiUrl?: string
+  apiKey?: string
+}
 
 export class AdaptadorCNPJ extends BaseAdapter {
   readonly nome = 'cnpj-receita-federal'
+  private readonly apiUrl: string
+  private readonly apiKey: string
+
+  constructor(options: CnpjAdapterOptions = {}) {
+    super(options)
+    this.apiUrl = (options.apiUrl ?? '').replace(/\/$/, '')
+    this.apiKey = options.apiKey ?? ''
+  }
 
   async consultar(
     parametros: Record<string, unknown>,
   ): Promise<Record<string, unknown>[]> {
-    return this.executarProtegido('consultar', async () => {
+    return this.executarProtegido('consultar', async (signal) => {
       const cnaes = Array.isArray(parametros['cnaes'])
         ? parametros['cnaes'].map(String)
         : []
       const municipio = String(parametros['municipio'] ?? '')
       const limit = Number(parametros['limit'] ?? 100)
+
+      if (this.apiUrl) {
+        const response = await fetch(`${this.apiUrl}/empresas`, {
+          method: 'POST',
+          signal,
+          headers: {
+            'content-type': 'application/json',
+            ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            cnaes,
+            municipio,
+            limit: Number.isFinite(limit) ? limit : 100,
+          }),
+        })
+
+        if (!response.ok) {
+          throw Object.assign(
+            new Error(`API CNPJ respondeu ${response.status}`),
+            { statusCode: response.status },
+          )
+        }
+
+        const payload = (await response.json()) as { empresas?: unknown[] }
+        return (payload.empresas ?? []).map((empresa) =>
+          this.normalizarApi(empresa as Record<string, unknown>),
+        )
+      }
 
       return mockEmpresas
         .filter((empresa) => {
@@ -59,6 +100,24 @@ export class AdaptadorCNPJ extends BaseAdapter {
         enriquecidoEm: new Date().toISOString(),
       }
     })
+  }
+
+  private normalizarApi(empresa: Record<string, unknown>): Record<string, unknown> {
+    return {
+      identificador: String(empresa['cnpj'] ?? empresa['identificador'] ?? ''),
+      nome: String(empresa['razao_social'] ?? empresa['razaoSocial'] ?? empresa['nome'] ?? ''),
+      tipo: 'pj',
+      endereco: String(empresa['endereco'] ?? empresa['logradouro'] ?? ''),
+      latitude: numeroCampo(empresa, 'latitude'),
+      longitude: numeroCampo(empresa, 'longitude'),
+      fonte: this.nome,
+      atributos: {
+        cnae: String(empresa['cnae_principal'] ?? empresa['cnaePrincipal'] ?? empresa['cnae'] ?? ''),
+        porte: numeroCampo(empresa, 'porte'),
+        idadeAnos: numeroCampo(empresa, 'idade_anos', 'idadeAnos'),
+        municipio: String(empresa['municipio'] ?? ''),
+      },
+    }
   }
 }
 
@@ -132,3 +191,11 @@ const mockEmpresas = [
     longitude: -48.55,
   },
 ]
+
+function numeroCampo(origem: Record<string, unknown>, ...nomes: string[]): number {
+  for (const nome of nomes) {
+    const valor = Number(origem[nome])
+    if (Number.isFinite(valor)) return valor
+  }
+  return 0
+}

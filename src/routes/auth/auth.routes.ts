@@ -35,7 +35,7 @@ const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => 
     },
     async (request, reply) => {
       const { email, password } = request.body
-      const user = findUserByCredentials(email, password)
+      const user = findUserByCredentials(email, password, fastify.config)
 
       if (!user) {
         return reply.code(401).send({

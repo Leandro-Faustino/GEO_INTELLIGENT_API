@@ -16,3 +16,5 @@ pytest-asyncio==0.24.0
 # Optional phase 7 local embeddings provider. Install only when using
 # EMBEDDINGS_PROVIDER=sbert because it pulls torch and large model assets.
 # sentence-transformers==3.1.1
+
+celery[redis]==5.4.0

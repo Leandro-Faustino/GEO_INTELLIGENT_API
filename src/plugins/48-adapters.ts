@@ -21,7 +21,10 @@ declare module 'fastify' {
 
 export default fp(
   async function adaptersPlugin(fastify): Promise<void> {
-    const cnpj = new AdaptadorCNPJ()
+    const cnpj = new AdaptadorCNPJ({
+      apiUrl: fastify.config.CNPJ_API_URL,
+      apiKey: fastify.config.CNPJ_API_KEY,
+    })
     const ibge = new AdaptadorIBGE()
     const geocoder = new AdaptadorGeocoder()
     const registroImoveis = new AdaptadorRegistroImoveis()

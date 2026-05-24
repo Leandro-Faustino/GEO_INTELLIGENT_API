@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     embeddings_model: str = "text-embedding-3-small"
     hooks_llm_enabled: bool = False
 
+    retrain_mode: str = Field(default="inline", pattern="^(inline|celery)$")
+    celery_broker_url: str = ""
+    celery_result_backend: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

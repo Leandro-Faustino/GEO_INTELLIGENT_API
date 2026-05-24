@@ -28,6 +28,15 @@ declare module '@fastify/jwt' {
 
 export default fp(
   async function authPlugin(fastify): Promise<void> {
+    if (
+      fastify.config.NODE_ENV === 'production' &&
+      (!fastify.config.ADMIN_EMAIL || !fastify.config.ADMIN_PASSWORD_HASH)
+    ) {
+      throw new Error(
+        'ADMIN_EMAIL e ADMIN_PASSWORD_HASH são obrigatórios em produção.',
+      )
+    }
+
     await fastify.register(fastifyJwt, {
       secret: fastify.config.JWT_SECRET,
       sign: {

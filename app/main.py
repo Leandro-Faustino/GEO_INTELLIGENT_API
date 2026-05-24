@@ -1,11 +1,12 @@
 """FastAPI entry point for the GeoLead intelligence engine."""
 
 import logging
+from hmac import compare_digest
 import time
 import uuid
 
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from app.api.routes import router
@@ -36,6 +37,17 @@ http_duration = Histogram(
 @app.middleware("http")
 async def observability_middleware(request: Request, call_next):
     request_id = request.headers.get(settings.request_id_header) or str(uuid.uuid4())
+
+    if _requer_chave_interna(request):
+        enviada = request.headers.get("x-internal-key", "")
+        if not compare_digest(enviada, settings.internal_api_key):
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "detail": "Chave interna ausente ou inválida.",
+                },
+                headers={settings.request_id_header: request_id},
+            )
 
     start = time.perf_counter()
     response = await call_next(request)
@@ -75,3 +87,9 @@ async def metrics() -> Response:
 
 
 app.include_router(router)
+
+
+def _requer_chave_interna(request: Request) -> bool:
+    if settings.environment != "production":
+        return False
+    return request.url.path != "/health"

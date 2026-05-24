@@ -154,6 +154,35 @@ export const envSchema = {
       type: 'boolean',
       default: false,
     },
+    RETRAIN_MODE: {
+      type: 'string',
+      enum: ['inline', 'celery'],
+      default: 'inline',
+    },
+    CELERY_BROKER_URL: {
+      type: 'string',
+      default: '',
+    },
+    CELERY_RESULT_BACKEND: {
+      type: 'string',
+      default: '',
+    },
+    CNPJ_API_URL: {
+      type: 'string',
+      default: '',
+    },
+    CNPJ_API_KEY: {
+      type: 'string',
+      default: '',
+    },
+    ADMIN_EMAIL: {
+      type: 'string',
+      default: '',
+    },
+    ADMIN_PASSWORD_HASH: {
+      type: 'string',
+      default: '',
+    },
   },
 } as const
 
@@ -196,4 +225,11 @@ export interface AppConfig {
   EMBEDDINGS_PROVIDER: 'api' | 'sbert'
   EMBEDDINGS_MODEL: string
   HOOKS_LLM_ENABLED: boolean
+  RETRAIN_MODE: 'inline' | 'celery'
+  CELERY_BROKER_URL: string
+  CELERY_RESULT_BACKEND: string
+  CNPJ_API_URL: string
+  CNPJ_API_KEY: string
+  ADMIN_EMAIL: string
+  ADMIN_PASSWORD_HASH: string
 }

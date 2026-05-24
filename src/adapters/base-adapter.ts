@@ -131,7 +131,9 @@ export abstract class BaseAdapter implements IAdaptadorFonte {
 
 function isClientError(error: Error): boolean {
   const statusCode = (error as { statusCode?: number }).statusCode
-  return typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500
+  if (typeof statusCode !== 'number') return false
+  if (statusCode === 408 || statusCode === 429) return false
+  return statusCode >= 400 && statusCode < 500
 }
 
 function sleep(ms: number): Promise<void> {

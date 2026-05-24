@@ -22,6 +22,11 @@ npm run docker:up
 
 O `docker-compose.yml` sobe PostgreSQL, MongoDB, Redis, a API Node e o motor Python em FastAPI. A API Node fica em `APP_HOST_PORT` e o motor em `ENGINE_HOST_PORT`. O compose usa variáveis de ambiente com placeholders apenas para desenvolvimento local. Troque todos os valores de senha/segredo no `.env` local. O arquivo `.env` é ignorado pelo Git.
 
+Em produção, `DB_ENABLED=true` exige persistência real: `POSTGRES_URL` ou
+`DATABASE_URL` para os dados transacionais e `MONGO_URL` para entidades-alvo.
+Se qualquer um estiver ausente, a API falha no boot em vez de cair para
+repositórios em memória.
+
 ## Motor Python
 
 ```bash

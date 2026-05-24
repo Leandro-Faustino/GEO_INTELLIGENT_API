@@ -47,6 +47,19 @@ export default fp(
     const usePostgres = Boolean(fastify.config.DB_ENABLED && datasource.pg?.pool)
     const useMongo = Boolean(fastify.config.DB_ENABLED && datasource.mongo?.db)
 
+    if (fastify.config.DB_ENABLED && fastify.config.NODE_ENV === 'production') {
+      if (!usePostgres) {
+        throw new Error(
+          'POSTGRES_URL/DATABASE_URL é obrigatório em produção com DB_ENABLED=true.',
+        )
+      }
+      if (!useMongo) {
+        throw new Error(
+          'MONGO_URL é obrigatório em produção com DB_ENABLED=true.',
+        )
+      }
+    }
+
     const clienteRepo: IClienteRepository = usePostgres
       ? new ClientePgRepository(datasource.pg!.pool)
       : new MemoryClienteRepo()
