@@ -23,10 +23,12 @@ export default fp(
           { name: 'Perfis', description: 'Perfis ideais derivados da base histórica.' },
           { name: 'Análises', description: 'Execução e consulta de análises lookalike.' },
           { name: 'Entregas', description: 'Montagem de entregas e coleta de feedback.' },
+          { name: 'Raio-X', description: 'Diagnóstico do cliente ideal a partir da base de compradores.' },
           { name: 'Fontes', description: 'Consulta e enriquecimento via fontes externas.' },
           { name: 'Admin', description: 'Operações administrativas protegidas.' },
           { name: 'Segurança', description: 'Rotas de exemplo para controles OWASP.' },
         ],
+        security: [{ bearerAuth: [] }],
         components: {
           securitySchemes: {
             bearerAuth: {

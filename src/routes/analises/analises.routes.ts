@@ -23,10 +23,27 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 201: AnaliseResponse, 404: ErrorResponse, 422: ErrorResponse },
       },
     },
-    async (request, reply) => {
+    async function executarAnaliseHandler(request, reply) {
+      request.log.info(
+        {
+          clienteId: request.body.clienteId,
+          escopo: request.body.escopo,
+          limiarSimilaridade: request.body.limiarSimilaridade ?? 0.3,
+          motorHabilitado: Boolean(fastify.motor),
+        },
+        'executando analise lookalike',
+      )
       if (fastify.motor) {
         try {
           const analise = await executarNoMotor(fastify, request.body, request.id)
+          request.log.info(
+            {
+              analiseId: analise.id,
+              totalOportunidades: analise.oportunidades.length,
+              origem: 'motor',
+            },
+            'analise concluida',
+          )
           return reply.code(201).send({
             ...analise,
             totalOportunidades: analise.oportunidades.length,
@@ -49,6 +66,14 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         request.body.limiarSimilaridade,
       )
 
+      request.log.info(
+        {
+          analiseId: analise.id,
+          totalOportunidades: analise.oportunidades.length,
+          origem: 'local',
+        },
+        'analise concluida',
+      )
       return reply.code(201).send({
         ...analise,
         totalOportunidades: analise.oportunidades.length,
@@ -68,7 +93,7 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 200: AnaliseResponse, 404: ErrorResponse },
       },
     },
-    async (request, reply) => {
+    async function buscarAnalisePorIdHandler(request, reply) {
       const analise = await fastify.analiseRepo.buscarPorId(request.params.id)
       if (!analise) {
         return reply.code(404).send({

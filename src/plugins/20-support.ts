@@ -12,7 +12,8 @@ import underPressure from '@fastify/under-pressure'
  *  - @fastify/under-pressure: monitora event loop, heap e RSS. Quando
  *    a aplicação está sobrecarregada, responde 503 automaticamente em
  *    vez de degradar — uma defesa adicional contra DoS e cascata de
- *    falhas. Também expõe o endpoint de health check `/health`.
+ *    falhas. O readiness check HTTP fica em `src/routes/root.routes.ts`
+ *    para permitir verificações detalhadas de dependências externas.
  */
 export default fp(
   async function supportPlugin(fastify): Promise<void> {
@@ -23,14 +24,6 @@ export default fp(
       maxHeapUsedBytes: 256 * 1024 * 1024,
       maxRssBytes: 512 * 1024 * 1024,
       maxEventLoopUtilization: 0.98,
-      // Health check pronto para liveness/readiness probes (k8s).
-      exposeStatusRoute: {
-        url: '/health',
-        routeOpts: {
-          // Health check não deve ser limitado por rate-limit.
-          config: { rateLimit: false },
-        },
-      },
       message: 'Serviço temporariamente indisponível — sob pressão.',
       retryAfter: 50,
     })

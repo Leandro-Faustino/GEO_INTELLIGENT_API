@@ -19,11 +19,13 @@ const adminRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =>
         },
       },
     },
-    async () => ({
-      totalClientes: 0,
-      totalAnalises: 0,
-      uptime: Math.floor(process.uptime()),
-    }),
+    async function consultarEstatisticasAdminHandler() {
+      return {
+        totalClientes: 0,
+        totalAnalises: 0,
+        uptime: Math.floor(process.uptime()),
+      }
+    },
   )
 }
 

@@ -41,7 +41,7 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         },
       },
     },
-    async (request) => {
+    async function listarClientesHandler(request) {
       const { items, total } = await fastify.clienteRepo.listar(
         request.query.limit,
         request.query.offset,
@@ -68,7 +68,15 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 201: ClienteResponse, 400: ErrorResponse },
       },
     },
-    async (request, reply) => {
+    async function criarClienteHandler(request, reply) {
+      request.log.info(
+        {
+          razaoSocial: request.body.razaoSocial,
+          cidade: request.body.cidade,
+          vertical: request.body.vertical,
+        },
+        'criando cliente',
+      )
       const now = new Date().toISOString()
       const cliente = await fastify.clienteRepo.salvar({
         id: randomUUID(),
@@ -82,6 +90,7 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         updatedAt: now,
       })
 
+      request.log.info({ clienteId: cliente.id }, 'cliente criado')
       return reply.code(201).send(cliente)
     },
   )
@@ -98,7 +107,7 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 200: ClienteResponse, 404: ErrorResponse },
       },
     },
-    async (request, reply) => {
+    async function buscarClientePorIdHandler(request, reply) {
       const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
       if (!cliente) {
         return reply.code(404).send({
@@ -125,7 +134,8 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 200: ClienteResponse, 404: ErrorResponse },
       },
     },
-    async (request, reply) => {
+    async function atualizarClienteHandler(request, reply) {
+      request.log.info({ clienteId: request.params.id }, 'atualizando cliente')
       const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
       if (!cliente) {
         return reply.code(404).send({
@@ -135,13 +145,16 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         })
       }
 
-      return fastify.clienteRepo.salvar({
+      const atualizado = await fastify.clienteRepo.salvar({
         ...cliente,
         ...request.body,
         parametrosNegocio:
           request.body.parametrosNegocio ?? cliente.parametrosNegocio,
         updatedAt: new Date().toISOString(),
       })
+
+      request.log.info({ clienteId: atualizado.id }, 'cliente atualizado')
+      return atualizado
     },
   )
 
@@ -164,7 +177,15 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         },
       },
     },
-    async (request, reply) => {
+    async function importarBaseInternaHandler(request, reply) {
+      request.log.info(
+        {
+          clienteId: request.params.id,
+          periodo: request.body.periodo,
+          totalCompradores: request.body.compradores.length,
+        },
+        'importando base interna',
+      )
       const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
       if (!cliente) {
         return reply.code(404).send({
@@ -181,6 +202,13 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         compradores: request.body.compradores,
       })
 
+      request.log.info(
+        {
+          clienteId: request.params.id,
+          totalImportados: request.body.compradores.length,
+        },
+        'base interna importada',
+      )
       return reply.code(201).send({
         message: 'Base interna importada.',
         totalImportados: request.body.compradores.length,

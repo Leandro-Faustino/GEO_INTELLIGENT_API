@@ -67,6 +67,10 @@ class FeedbackRequest(ContractModel):
     resultados: list[ResultadoConversao]
 
 
+class RaioXRequest(ContractModel):
+    compradores: list[CompradorConhecido] = Field(min_length=1)
+
+
 class CriterioDerivado(ContractModel):
     nome: str
     valor_min: Any
@@ -102,3 +106,43 @@ class AnaliseResponse(ContractModel):
     total_oportunidades: int
     oportunidades: list[Oportunidade]
     versao_modelo: str
+
+
+class RetratoRaioX(ContractModel):
+    frase: str
+    complemento: str | None = None
+
+
+class FatorRaioX(ContractModel):
+    atributo: str
+    peso_percentual: int = Field(ge=0, le=100)
+    descricao: str
+
+
+class EstatisticasRaioX(ContractModel):
+    total_clientes: int = Field(ge=0)
+    ativos: int = Field(ge=0)
+    com_recompra: int = Field(ge=0)
+    percentual_fieis: int = Field(ge=0, le=100)
+    ticket_medio: float | None = Field(default=None, ge=0)
+    ticket_min: float | None = Field(default=None, ge=0)
+    ticket_max: float | None = Field(default=None, ge=0)
+
+
+class SegmentoRaioX(ContractModel):
+    segmento: str
+    quantidade: int = Field(ge=0)
+    percentual: int = Field(ge=0, le=100)
+
+
+class PotencialRaioX(ContractModel):
+    mensagem: str
+    cta: str
+
+
+class RaioXResponse(ContractModel):
+    retrato: RetratoRaioX
+    fatores: list[FatorRaioX]
+    estatisticas: EstatisticasRaioX
+    segmentos: list[SegmentoRaioX]
+    potencial: PotencialRaioX

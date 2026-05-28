@@ -48,6 +48,13 @@ export class MotorClient extends BaseAdapter {
     return this.postProtegido('/analisar', payload, requestId)
   }
 
+  async raioX(
+    payload: Record<string, unknown>,
+    requestId: string,
+  ): Promise<Record<string, unknown>> {
+    return this.postProtegido('/raio-x', payload, requestId)
+  }
+
   async feedback(
     payload: Record<string, unknown>,
     requestId: string,

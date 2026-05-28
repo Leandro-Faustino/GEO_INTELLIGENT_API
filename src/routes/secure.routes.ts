@@ -27,7 +27,7 @@ const secureRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         },
       },
     },
-    async (request, reply) => {
+    async function consultarDocumentoProtegidoHandler(request, reply) {
       const doc = findDocumentById(request.params.id)
 
       if (!doc || doc.ownerId !== request.user.sub) {
@@ -65,7 +65,7 @@ const secureRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         },
       },
     },
-    async (request, reply) => {
+    async function validarUrlRemotaHandler(request, reply) {
       const result = validateOutboundUrl(request.body.url, {
         allowedHosts: ['api.exemplo-confiavel.com'],
         allowedProtocols: ['https:'],

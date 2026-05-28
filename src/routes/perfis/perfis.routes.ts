@@ -16,13 +16,21 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         response: { 201: PerfilResponse, 404: ErrorResponse, 422: ErrorResponse },
       },
     },
-    async (request, reply) => {
+    async function derivarPerfilHandler(request, reply) {
+      request.log.info(
+        { clienteId: request.body.clienteId, tipoAlvo: request.body.tipoAlvo },
+        'derivando perfil ideal',
+      )
       const perfil = await fastify.derivacaoService.derivarPerfil(
         request.body.clienteId,
         request.body.tipoAlvo,
         request.body.nome,
       )
 
+      request.log.info(
+        { perfilId: perfil.id, criterios: perfil.criterios.length },
+        'perfil derivado',
+      )
       return reply.code(201).send(perfil)
     },
   )
@@ -39,7 +47,7 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         response: { 200: PerfilResponse, 404: ErrorResponse },
       },
     },
-    async (request, reply) => {
+    async function buscarPerfilPorIdHandler(request, reply) {
       const perfil = await fastify.perfilRepo.buscarPorId(request.params.id)
       if (!perfil) {
         return reply.code(404).send({
@@ -77,7 +85,7 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         },
       },
     },
-    async (request) => {
+    async function listarPerfisPorClienteHandler(request) {
       const perfis = await fastify.perfilRepo.buscarPorCliente(request.query.clienteId)
       return perfis.map((perfil) => ({
         id: perfil.id,

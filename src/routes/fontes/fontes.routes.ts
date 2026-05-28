@@ -31,11 +31,12 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         },
       },
     },
-    async () =>
-      fastify.adapters.todas.map((adapter) => ({
+    async function listarFontesHandler() {
+      return fastify.adapters.todas.map((adapter) => ({
         nome: adapter.nome,
         circuitState: (adapter as { circuitState?: string }).circuitState ?? 'unknown',
-      })),
+      }))
+    },
   )
 
   fastify.post(
@@ -64,10 +65,18 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         },
       },
     },
-    async (request) => {
+    async function consultarFonteHandler(request) {
+      request.log.info(
+        { fonte: request.params.fonte, parametros: request.body.parametros },
+        'consulta em fonte externa solicitada',
+      )
       const adapter = resolverAdapter(fastify, request.params.fonte)
       const resultados = await adapter.consultar(request.body.parametros)
 
+      request.log.info(
+        { fonte: adapter.nome, total: resultados.length },
+        'consulta em fonte externa concluida',
+      )
       return {
         fonte: adapter.nome,
         total: resultados.length,
@@ -96,9 +105,15 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         },
       },
     },
-    async (request) => {
+    async function enriquecerFonteHandler(request) {
+      request.log.info(
+        { fonte: request.params.fonte, identificador: request.body.identificador },
+        'enriquecimento em fonte externa solicitado',
+      )
       const adapter = resolverAdapter(fastify, request.params.fonte)
-      return adapter.enriquecer(request.body.identificador)
+      const resultado = await adapter.enriquecer(request.body.identificador)
+      request.log.info({ fonte: adapter.nome }, 'enriquecimento em fonte externa concluido')
+      return resultado
     },
   )
 }
@@ -106,7 +121,7 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
 function resolverAdapter(
   fastify: FastifyInstance,
   fonte: string,
-) {
+): FastifyInstance['adapters']['todas'][number] {
   const adapters = {
     cnpj: fastify.adapters.cnpj,
     ibge: fastify.adapters.ibge,

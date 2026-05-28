@@ -19,12 +19,21 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 201: EntregaResponse, 422: ErrorResponse },
       },
     },
-    async (_request, reply) =>
-      reply.code(422).send({
+    async function montarEntregaHandler(request, reply) {
+      request.log.info(
+        {
+          clienteId: request.body.clienteId,
+          periodo: request.body.periodo,
+          formato: request.body.formato,
+        },
+        'montagem de entrega solicitada',
+      )
+      return reply.code(422).send({
         statusCode: 422,
         error: 'Unprocessable Entity',
         message: 'Serviço de entrega ainda não implementado.',
-      }),
+      })
+    },
   )
 
   fastify.get(
@@ -39,12 +48,13 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 200: EntregaResponse, 404: ErrorResponse },
       },
     },
-    async (request, reply) =>
-      reply.code(404).send({
+    async function buscarEntregaPorIdHandler(request, reply) {
+      return reply.code(404).send({
         statusCode: 404,
         error: 'Not Found',
         message: `Entrega '${request.params.id}' não encontrada.`,
-      }),
+      })
+    },
   )
 
   fastify.post(
@@ -60,12 +70,14 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 200: EntregaResponse, 404: ErrorResponse, 422: ErrorResponse },
       },
     },
-    async (_request, reply) =>
-      reply.code(422).send({
+    async function registrarFeedbackEntregaHandler(request, reply) {
+      request.log.info({ entregaId: request.params.id }, 'feedback de entrega solicitado')
+      return reply.code(422).send({
         statusCode: 422,
         error: 'Unprocessable Entity',
         message: 'Serviço de feedback ainda não implementado.',
-      }),
+      })
+    },
   )
 }
 

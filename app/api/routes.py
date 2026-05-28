@@ -9,12 +9,15 @@ from app.schemas.contracts import (
     DerivarPerfilRequest,
     FeedbackRequest,
     PerfilResponse,
+    RaioXRequest,
+    RaioXResponse,
 )
 from app.core.config import get_settings
 from app.ml.tasks import enfileirar_retreino
 from app.ml.trainer import Trainer
 from app.services.analise_service import AnaliseService
 from app.services.derivacao_service import DerivacaoService
+from app.services.raiox_service import RaioXService
 
 router = APIRouter()
 
@@ -25,6 +28,10 @@ async def get_derivacao_service() -> DerivacaoService:
 
 async def get_trainer() -> Trainer:
     return Trainer(models_dir=get_settings().models_dir)
+
+
+async def get_raiox_service() -> RaioXService:
+    return RaioXService()
 
 
 @router.post(
@@ -54,6 +61,21 @@ async def analisar(
     classificador = trainer.carregar_classificador(req.cliente_id)
     service = AnaliseService(classificador=classificador)
     return service.analisar(req)
+
+
+@router.post(
+    "/raio-x",
+    response_model=RaioXResponse,
+    tags=["raiox"],
+)
+async def gerar_raiox(
+    req: RaioXRequest,
+    service: RaioXService = Depends(get_raiox_service),
+) -> RaioXResponse:
+    try:
+        return service.gerar(req)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/feedback", tags=["feedback"])
