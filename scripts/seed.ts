@@ -14,9 +14,10 @@ const now = new Date().toISOString()
 await pool.query(
   `
     insert into clientes
-      (id, razao_social, segmento, cidade, endereco, vertical, parametros_negocio, created_at, updated_at)
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      (id, owner_id, razao_social, segmento, cidade, endereco, vertical, parametros_negocio, created_at, updated_at)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     on conflict (id) do update set
+      owner_id = excluded.owner_id,
       razao_social = excluded.razao_social,
       segmento = excluded.segmento,
       cidade = excluded.cidade,
@@ -27,6 +28,7 @@ await pool.query(
   `,
   [
     '00000000-0000-4000-8000-000000000001',
+    'seed-user',
     'Cliente Demonstracao',
     'hotelaria',
     'Joinville',

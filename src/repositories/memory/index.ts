@@ -141,6 +141,11 @@ export class MemoryAlertaRepo implements IAlertaRepository {
     return clone(alerta)
   }
 
+  async buscarPorId(id: string): Promise<AlertaDTO | null> {
+    const item = this.items.get(id)
+    return item ? clone(item) : null
+  }
+
   async buscarPorCliente(
     clienteId: string,
     status?: AlertaDTO['status'],

@@ -103,7 +103,7 @@ export default fp(
     )
     fastify.decorate(
       'alertaService',
-      new AlertaService(alertaRepo, perfilRepo, entidadeAlvoRepo),
+      new AlertaService(alertaRepo, perfilRepo, entidadeAlvoRepo, baseInternaRepo),
     )
 
     fastify.log.info(

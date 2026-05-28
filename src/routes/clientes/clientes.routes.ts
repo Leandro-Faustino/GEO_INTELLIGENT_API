@@ -80,6 +80,7 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
       const now = new Date().toISOString()
       const cliente = await fastify.clienteRepo.salvar({
         id: randomUUID(),
+        ownerId: request.user.sub,
         razaoSocial: request.body.razaoSocial,
         segmento: request.body.segmento,
         cidade: request.body.cidade,

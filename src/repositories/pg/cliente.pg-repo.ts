@@ -7,9 +7,10 @@ export class ClientePgRepository implements IClienteRepository {
   async salvar(cliente: ClienteDTO): Promise<ClienteDTO> {
     const result = await this.pool.query(
       `insert into clientes
-        (id, razao_social, segmento, cidade, endereco, vertical, parametros_negocio, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        (id, owner_id, razao_social, segmento, cidade, endereco, vertical, parametros_negocio, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        on conflict (id) do update set
+        owner_id = excluded.owner_id,
         razao_social = excluded.razao_social,
         segmento = excluded.segmento,
         cidade = excluded.cidade,
@@ -17,10 +18,11 @@ export class ClientePgRepository implements IClienteRepository {
         vertical = excluded.vertical,
         parametros_negocio = excluded.parametros_negocio,
         updated_at = excluded.updated_at
-       returning id, razao_social, segmento, cidade, endereco, vertical,
+       returning id, owner_id, razao_social, segmento, cidade, endereco, vertical,
         parametros_negocio, created_at, updated_at`,
       [
         cliente.id,
+        cliente.ownerId,
         cliente.razaoSocial,
         cliente.segmento,
         cliente.cidade,
@@ -36,7 +38,7 @@ export class ClientePgRepository implements IClienteRepository {
 
   async buscarPorId(id: string): Promise<ClienteDTO | null> {
     const result = await this.pool.query(
-      `select id, razao_social, segmento, cidade, endereco, vertical,
+      `select id, owner_id, razao_social, segmento, cidade, endereco, vertical,
         parametros_negocio, created_at, updated_at
        from clientes where id = $1`,
       [id],
@@ -46,7 +48,7 @@ export class ClientePgRepository implements IClienteRepository {
 
   async listar(limit: number, offset: number): Promise<{ items: ClienteDTO[]; total: number }> {
     const result = await this.pool.query(
-      `select id, razao_social, segmento, cidade, endereco, vertical,
+      `select id, owner_id, razao_social, segmento, cidade, endereco, vertical,
         parametros_negocio, created_at, updated_at, count(*) over() as total_count
        from clientes
        order by created_at desc
@@ -66,6 +68,7 @@ export class PgClienteRepository extends ClientePgRepository {}
 function mapCliente(row: Record<string, unknown>): ClienteDTO {
   return {
     id: String(row['id']),
+    ownerId: String(row['owner_id']),
     razaoSocial: String(row['razao_social']),
     segmento: String(row['segmento']),
     cidade: String(row['cidade']),

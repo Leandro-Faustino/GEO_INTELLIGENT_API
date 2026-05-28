@@ -1,5 +1,6 @@
 export interface ClienteDTO {
   id: string
+  ownerId: string
   razaoSocial: string
   segmento: string
   cidade: string
@@ -144,6 +145,7 @@ export interface AlertaDTO {
 
 export interface IAlertaRepository {
   salvar(alerta: AlertaDTO): Promise<AlertaDTO>
+  buscarPorId(id: string): Promise<AlertaDTO | null>
   buscarPorCliente(
     clienteId: string,
     status?: AlertaDTO['status'],

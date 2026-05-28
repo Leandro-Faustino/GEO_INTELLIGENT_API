@@ -64,6 +64,52 @@ test('alertas: escanear, listar e atualizar status', async () => {
   }
 })
 
+test('alertas: outro usuário não acessa nem altera alertas de cliente alheio', async () => {
+  const app = await buildTestApp()
+  try {
+    const aliceToken = await loginAs(app, 'alice@example.com', 'alice-secret-123')
+    const bobToken = await loginAs(app, 'bob@example.com', 'bob-secret-456')
+    const clienteId = await prepararPerfil(app, aliceToken)
+
+    const scan = await app.inject({
+      method: 'POST',
+      url: '/alertas/escanear',
+      headers: { authorization: `Bearer ${aliceToken}` },
+      payload: { clienteId, escopo: 'zona-sul', limiar: 0.1 },
+    })
+    assert.equal(scan.statusCode, 200)
+
+    const primeiroAlertaId =
+      scan.json<{ alertasGerados: Array<{ id: string }> }>().alertasGerados[0]?.id
+    assert.ok(primeiroAlertaId)
+
+    const listaDeBob = await app.inject({
+      method: 'GET',
+      url: `/alertas?clienteId=${clienteId}`,
+      headers: { authorization: `Bearer ${bobToken}` },
+    })
+    assert.equal(listaDeBob.statusCode, 403)
+
+    const patchDeBob = await app.inject({
+      method: 'PATCH',
+      url: `/alertas/${primeiroAlertaId}`,
+      headers: { authorization: `Bearer ${bobToken}` },
+      payload: { status: 'convertido' },
+    })
+    assert.equal(patchDeBob.statusCode, 403)
+
+    const scanDeBob = await app.inject({
+      method: 'POST',
+      url: '/alertas/escanear',
+      headers: { authorization: `Bearer ${bobToken}` },
+      payload: { clienteId, escopo: 'zona-sul', limiar: 0.1 },
+    })
+    assert.equal(scanDeBob.statusCode, 403)
+  } finally {
+    await app.close()
+  }
+})
+
 async function prepararPerfil(
   app: FastifyInstance,
   token: string,

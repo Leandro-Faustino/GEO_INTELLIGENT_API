@@ -3,6 +3,7 @@ import type {
   CriterioDerivadoDTO,
   EntidadeAlvoDTO,
   IAlertaRepository,
+  IBaseInternaRepository,
   IEntidadeAlvoRepository,
   IPerfilRepository,
 } from '../repositories/interfaces/index.js'
@@ -13,6 +14,7 @@ export class AlertaService {
     private readonly alertaRepo: IAlertaRepository,
     private readonly perfilRepo: IPerfilRepository,
     private readonly entidadeRepo: IEntidadeAlvoRepository,
+    private readonly baseInternaRepo: IBaseInternaRepository,
   ) {}
 
   async escanear(
@@ -31,9 +33,16 @@ export class AlertaService {
     }
 
     const entidades = await this.entidadeRepo.buscarPorEscopo(escopo)
+    const base = await this.baseInternaRepo.buscarPorCliente(clienteId)
+    const jaClientes = new Set(
+      base?.compradores.map((comprador) => comprador.identificador) ?? [],
+    )
     const alertasGerados: AlertaDTO[] = []
 
     for (const entidade of entidades) {
+      if (jaClientes.has(entidade.identificador)) continue
+      if (perfil.exclusoes.includes(entidade.identificador)) continue
+
       const jaExiste = await this.alertaRepo.existeParaEntidade(
         clienteId,
         entidade.identificador,
@@ -49,7 +58,7 @@ export class AlertaService {
         tipo: 'nova_entidade',
         entidadeAlvoId: entidade.identificador,
         entidadeNome: entidade.nome,
-        entidadeCidade: entidade.endereco,
+        entidadeCidade: String(entidade.atributos.cidade ?? ''),
         score: arredondar(score),
         mensagem: `${entidade.nome} tem ${Math.round(
           score * 100,
