@@ -3,6 +3,7 @@ import { sharedSchemas } from './shared/index.js'
 import { clienteSchemas } from './clientes/index.js'
 import { perfilSchemas } from './perfis/index.js'
 import { analiseSchemas } from './analises/index.js'
+import { alertaSchemas } from './alertas/index.js'
 import { entregaSchemas } from './entregas/index.js'
 import { raioXSchemas } from './raio-x/index.js'
 
@@ -11,6 +12,7 @@ const schemas = [
   ...clienteSchemas,
   ...perfilSchemas,
   ...analiseSchemas,
+  ...alertaSchemas,
   ...entregaSchemas,
   ...raioXSchemas,
 ]

@@ -1,9 +1,11 @@
 import type {
+  AlertaDTO,
   AnaliseDTO,
   BaseInternaDTO,
   ClienteDTO,
   EntidadeAlvoDTO,
   EntregaDTO,
+  IAlertaRepository,
   IAnaliseRepository,
   IBaseInternaRepository,
   IClienteRepository,
@@ -128,6 +130,52 @@ export class MemoryEntregaRepo implements IEntregaRepository {
   async buscarPorId(id: string): Promise<EntregaDTO | null> {
     const item = this.items.get(id)
     return item ? clone(item) : null
+  }
+}
+
+export class MemoryAlertaRepo implements IAlertaRepository {
+  private readonly items = new Map<string, AlertaDTO>()
+
+  async salvar(alerta: AlertaDTO): Promise<AlertaDTO> {
+    this.items.set(alerta.id, clone(alerta))
+    return clone(alerta)
+  }
+
+  async buscarPorCliente(
+    clienteId: string,
+    status?: AlertaDTO['status'],
+  ): Promise<AlertaDTO[]> {
+    return clone(
+      [...this.items.values()]
+        .filter((alerta) => {
+          if (alerta.clienteId !== clienteId) return false
+          return status ? alerta.status === status : true
+        })
+        .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
+    )
+  }
+
+  async atualizarStatus(
+    id: string,
+    status: AlertaDTO['status'],
+  ): Promise<AlertaDTO | null> {
+    const alerta = this.items.get(id)
+    if (!alerta) return null
+
+    const atualizado = { ...alerta, status }
+    this.items.set(id, clone(atualizado))
+    return clone(atualizado)
+  }
+
+  async existeParaEntidade(
+    clienteId: string,
+    entidadeAlvoId: string,
+  ): Promise<boolean> {
+    return [...this.items.values()].some(
+      (alerta) =>
+        alerta.clienteId === clienteId &&
+        alerta.entidadeAlvoId === entidadeAlvoId,
+    )
   }
 }
 

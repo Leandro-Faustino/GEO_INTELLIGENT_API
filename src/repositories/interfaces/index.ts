@@ -128,3 +128,32 @@ export interface IEntregaRepository {
   salvar(entrega: EntregaDTO): Promise<EntregaDTO>
   buscarPorId(id: string): Promise<EntregaDTO | null>
 }
+
+export interface AlertaDTO {
+  id: string
+  clienteId: string
+  tipo: string
+  entidadeAlvoId: string
+  entidadeNome: string
+  entidadeCidade: string
+  score: number
+  mensagem: string
+  status: 'novo' | 'visto' | 'descartado' | 'convertido'
+  criadoEm: string
+}
+
+export interface IAlertaRepository {
+  salvar(alerta: AlertaDTO): Promise<AlertaDTO>
+  buscarPorCliente(
+    clienteId: string,
+    status?: AlertaDTO['status'],
+  ): Promise<AlertaDTO[]>
+  atualizarStatus(
+    id: string,
+    status: AlertaDTO['status'],
+  ): Promise<AlertaDTO | null>
+  existeParaEntidade(
+    clienteId: string,
+    entidadeAlvoId: string,
+  ): Promise<boolean>
+}
