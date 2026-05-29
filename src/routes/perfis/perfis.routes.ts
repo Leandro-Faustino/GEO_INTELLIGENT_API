@@ -1,7 +1,12 @@
 import { type FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
+import {
+  EnriquecerPerfilBody,
+  EnriquecimentoResponse,
+} from '../../schemas/enriquecimento/index.js'
 import { DerivarPerfilBody, PerfilResponse } from '../../schemas/perfis/index.js'
 import { ErrorResponse, IdParams } from '../../schemas/shared/index.js'
+import { EnriquecimentoService } from '../../services/enriquecimento.service.js'
 
 const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.post(
@@ -32,6 +37,70 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         'perfil derivado',
       )
       return reply.code(201).send(perfil)
+    },
+  )
+
+  fastify.post(
+    '/perfis/enriquecer',
+    {
+      schema: {
+        summary: 'Enriquecer perfil com fontes externas',
+        description:
+          'Amplia os atributos dos compradores com dados de fontes externas e destaca novos fatores do perfil.',
+        tags: ['Perfis'],
+        security: [{ bearerAuth: [] }],
+        body: EnriquecerPerfilBody,
+        response: {
+          200: EnriquecimentoResponse,
+          403: ErrorResponse,
+          404: ErrorResponse,
+          422: ErrorResponse,
+        },
+      },
+    },
+    async function enriquecerPerfilHandler(request, reply) {
+      const cliente = await fastify.clienteRepo.buscarPorId(request.body.clienteId)
+      if (!cliente) {
+        return reply.code(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Cliente '${request.body.clienteId}' não encontrado.`,
+        })
+      }
+      if (cliente.ownerId !== request.user.sub) {
+        return reply.code(403).send({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: 'Acesso negado a este recurso.',
+        })
+      }
+
+      request.log.info(
+        { clienteId: request.body.clienteId, fontes: request.body.fontes },
+        'enriquecendo perfil com fontes externas',
+      )
+
+      const service = new EnriquecimentoService(
+        fastify.baseInternaRepo,
+        fastify.perfilRepo,
+        fastify.adapters.todas.map((adapter) => ({ nome: adapter.nome, adapter })),
+      )
+      const resultado = await service.enriquecer(
+        request.body.clienteId,
+        request.body.fontes,
+      )
+
+      request.log.info(
+        {
+          clienteId: request.body.clienteId,
+          fatoresOriginais: resultado.perfilOriginal.totalFatores,
+          fatoresEnriquecidos: resultado.perfilEnriquecido.totalFatores,
+          novosFatores: resultado.novosFatores.length,
+        },
+        'enriquecimento concluído',
+      )
+
+      return reply.code(200).send(resultado)
     },
   )
 

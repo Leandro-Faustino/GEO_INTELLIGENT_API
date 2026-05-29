@@ -24,10 +24,11 @@ import type {
   IPerfilRepository,
 } from '../repositories/interfaces/index.js'
 import { AnaliseService } from '../services/analise.service.js'
-import { AlertaService } from '../services/alerta.service.js'
-import { CompetitivaService } from '../services/competitiva.service.js'
 import { DerivacaoService } from '../services/derivacao.service.js'
+import { AlertaService } from '../services/alerta.service.js'
+import { EnriquecimentoService } from '../services/enriquecimento.service.js'
 import { TerritorioService } from '../services/territorio.service.js'
+import { CompetitivaService } from '../services/competitiva.service.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -41,6 +42,7 @@ declare module 'fastify' {
     readonly derivacaoService: DerivacaoService
     readonly analiseService: AnaliseService
     readonly alertaService: AlertaService
+    readonly enriquecimentoService: EnriquecimentoService
     readonly territorioService: TerritorioService
     readonly competitivaService: CompetitivaService
   }
@@ -55,19 +57,6 @@ export default fp(
 
     const usePostgres = Boolean(fastify.config.DB_ENABLED && datasource.pg?.pool)
     const useMongo = Boolean(fastify.config.DB_ENABLED && datasource.mongo?.db)
-
-    if (fastify.config.DB_ENABLED && fastify.config.NODE_ENV === 'production') {
-      if (!usePostgres) {
-        throw new Error(
-          'POSTGRES_URL/DATABASE_URL é obrigatório em produção com DB_ENABLED=true.',
-        )
-      }
-      if (!useMongo) {
-        throw new Error(
-          'MONGO_URL é obrigatório em produção com DB_ENABLED=true.',
-        )
-      }
-    }
 
     const clienteRepo: IClienteRepository = usePostgres
       ? new ClientePgRepository(datasource.pg!.pool)
@@ -84,7 +73,6 @@ export default fp(
     const entregaRepo: IEntregaRepository = usePostgres
       ? new EntregaPgRepository(datasource.pg!.pool)
       : new MemoryEntregaRepo()
-    const alertaRepo: IAlertaRepository = new MemoryAlertaRepo()
     const entidadeAlvoRepo: IEntidadeAlvoRepository = useMongo
       ? new MongoEntidadeAlvoRepository(datasource.mongo!.db)
       : new MemoryEntidadeAlvoRepo()
@@ -99,16 +87,28 @@ export default fp(
     fastify.decorate<IEntidadeAlvoRepository>('entidadeAlvoRepo', entidadeAlvoRepo)
     fastify.decorate<IAnaliseRepository>('analiseRepo', analiseRepo)
     fastify.decorate<IEntregaRepository>('entregaRepo', entregaRepo)
-    fastify.decorate<IAlertaRepository>('alertaRepo', alertaRepo)
     fastify.decorate('derivacaoService', new DerivacaoService(baseInternaRepo, perfilRepo))
     fastify.decorate(
       'analiseService',
       new AnaliseService(perfilRepo, entidadeAlvoRepo, baseInternaRepo, analiseRepo),
     )
+
+    const alertaRepo: IAlertaRepository = new MemoryAlertaRepo()
+    fastify.decorate<IAlertaRepository>('alertaRepo', alertaRepo)
     fastify.decorate(
       'alertaService',
-      new AlertaService(alertaRepo, perfilRepo, entidadeAlvoRepo, baseInternaRepo),
+      new AlertaService(alertaRepo, perfilRepo, entidadeAlvoRepo),
     )
+
+    // EnriquecimentoService: fontes são injetadas pelo plugin de
+    // adapters (48) que carrega depois. Usamos um setter lazy ou
+    // passamos as fontes na rota. Aqui instanciamos sem fontes;
+    // a rota injeta via fastify.adapters na chamada.
+    fastify.decorate(
+      'enriquecimentoService',
+      new EnriquecimentoService(baseInternaRepo, perfilRepo, []),
+    )
+
     fastify.decorate(
       'territorioService',
       new TerritorioService(perfilRepo, entidadeAlvoRepo, baseInternaRepo),

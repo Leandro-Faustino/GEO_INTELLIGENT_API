@@ -40,6 +40,76 @@ test('perfis: lista por cliente', async () => {
   }
 })
 
+test('perfis: enriquece perfil e persiste nova versão', async () => {
+  const app = await buildTestApp()
+  try {
+    const token = await loginAs(app, 'alice@example.com', 'alice-secret-123')
+    const clienteId = await criarClienteComBase(app, token)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/perfis/enriquecer',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { clienteId, fontes: ['ibge-censo', 'geocoder'] },
+    })
+
+    const body = res.json<{
+      perfilOriginal: { totalFatores: number }
+      perfilEnriquecido: { totalFatores: number }
+      fontesConsultadas: string[]
+    }>()
+
+    assert.equal(res.statusCode, 200)
+    assert.ok(body.perfilEnriquecido.totalFatores > body.perfilOriginal.totalFatores)
+    assert.deepEqual(body.fontesConsultadas.sort(), ['geocoder', 'ibge-censo'])
+
+    const perfis = await app.perfilRepo.buscarPorCliente(clienteId)
+    assert.equal(perfis.length, 1)
+    assert.equal(perfis[0]?.criterios.length, body.perfilEnriquecido.totalFatores)
+  } finally {
+    await app.close()
+  }
+})
+
+test('perfis: enriquecer com fonte inválida retorna 422', async () => {
+  const app = await buildTestApp()
+  try {
+    const token = await loginAs(app, 'alice@example.com', 'alice-secret-123')
+    const clienteId = await criarClienteComBase(app, token)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/perfis/enriquecer',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { clienteId, fontes: ['fonte-inexistente'] },
+    })
+
+    assert.equal(res.statusCode, 422)
+  } finally {
+    await app.close()
+  }
+})
+
+test('perfis: outro usuário não enriquece cliente alheio', async () => {
+  const app = await buildTestApp()
+  try {
+    const aliceToken = await loginAs(app, 'alice@example.com', 'alice-secret-123')
+    const bobToken = await loginAs(app, 'bob@example.com', 'bob-secret-456')
+    const clienteId = await criarClienteComBase(app, aliceToken)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/perfis/enriquecer',
+      headers: { authorization: `Bearer ${bobToken}` },
+      payload: { clienteId, fontes: ['ibge-censo'] },
+    })
+
+    assert.equal(res.statusCode, 403)
+  } finally {
+    await app.close()
+  }
+})
+
 async function criarClienteComBase(
   app: FastifyInstance,
   token: string,

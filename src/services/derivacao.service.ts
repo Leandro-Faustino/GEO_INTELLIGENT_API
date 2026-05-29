@@ -18,6 +18,15 @@ export class DerivacaoService {
     tipoAlvo: string,
     nome?: string,
   ): Promise<PerfilIdealDTO> {
+    const perfil = await this.calcularPerfil(clienteId, tipoAlvo, nome)
+    return this.perfilRepo.salvar(perfil)
+  }
+
+  async calcularPerfil(
+    clienteId: string,
+    tipoAlvo: string,
+    nome?: string,
+  ): Promise<PerfilIdealDTO> {
     const base = await this.baseInternaRepo.buscarPorCliente(clienteId)
     if (!base) {
       throw Object.assign(new Error('Base interna não encontrada.'), {
@@ -53,7 +62,7 @@ export class DerivacaoService {
     }
 
     const now = new Date().toISOString()
-    return this.perfilRepo.salvar({
+    return {
       id: randomUUID(),
       clienteId,
       nome: nome ?? `Perfil ${tipoAlvo} derivado`,
@@ -63,7 +72,7 @@ export class DerivacaoService {
       exclusoes: [],
       createdAt: now,
       updatedAt: now,
-    })
+    }
   }
 
   private extrairCriterios(
