@@ -12,6 +12,7 @@ const NovoFatorSchema = Type.Object({
   atributo: Type.String(),
   peso: Type.Number(),
   pesoPercentual: Type.Integer(),
+  suporte: Type.Number({ minimum: 0, maximum: 1 }),
   descricao: Type.String(),
   fonte: Type.String(),
 })

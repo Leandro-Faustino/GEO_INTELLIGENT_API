@@ -101,6 +101,10 @@ export const envSchema = {
       type: 'boolean',
       default: false,
     },
+    UNDER_PRESSURE_ENABLED: {
+      type: 'boolean',
+      default: true,
+    },
     OTEL_EXPORTER_OTLP_ENDPOINT: {
       type: 'string',
       default: 'http://localhost:4318/v1/traces',
@@ -175,6 +179,43 @@ export const envSchema = {
       type: 'string',
       default: '',
     },
+    BRASILAPI_BASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    RECEITAWS_BASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    IBGE_BASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    IDH_MUNICIPAL_DATASET_PATH: {
+      type: 'string',
+      default: '',
+    },
+    GEOCODER_PROVIDER_MODE: {
+      type: 'string',
+      enum: ['nominatim-public', 'nominatim-selfhosted', 'commercial'],
+      default: 'nominatim-public',
+    },
+    NOMINATIM_BASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    NOMINATIM_USER_AGENT: {
+      type: 'string',
+      default: '',
+    },
+    NOMINATIM_THROTTLE_MS: {
+      type: 'integer',
+      default: 1000,
+    },
+    SETORES_CENSITARIOS_GEOJSON_PATH: {
+      type: 'string',
+      default: '',
+    },
     ADMIN_EMAIL: {
       type: 'string',
       default: '',
@@ -212,6 +253,7 @@ export interface AppConfig {
   CACHE_TTL_SECONDS: number
   METRICS_ENABLED: boolean
   TRACING_ENABLED: boolean
+  UNDER_PRESSURE_ENABLED: boolean
   OTEL_EXPORTER_OTLP_ENDPOINT: string
   SWAGGER_ENABLED: boolean
   ENVIRONMENT: string
@@ -230,6 +272,15 @@ export interface AppConfig {
   CELERY_RESULT_BACKEND: string
   CNPJ_API_URL: string
   CNPJ_API_KEY: string
+  BRASILAPI_BASE_URL: string
+  RECEITAWS_BASE_URL: string
+  IBGE_BASE_URL: string
+  IDH_MUNICIPAL_DATASET_PATH: string
+  GEOCODER_PROVIDER_MODE: 'nominatim-public' | 'nominatim-selfhosted' | 'commercial'
+  NOMINATIM_BASE_URL: string
+  NOMINATIM_USER_AGENT: string
+  NOMINATIM_THROTTLE_MS: number
+  SETORES_CENSITARIOS_GEOJSON_PATH: string
   ADMIN_EMAIL: string
   ADMIN_PASSWORD_HASH: string
 }

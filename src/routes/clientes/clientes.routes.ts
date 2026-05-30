@@ -7,11 +7,14 @@ import {
   ImportarBaseInternaBody,
   UpdateClienteBody,
 } from '../../schemas/clientes/index.js'
+import { ListaCompradoresEnriquecidosResponse } from '../../schemas/clientes/compradores-enriquecidos.js'
 import {
   ErrorResponse,
   IdParams,
   PaginationQuery,
 } from '../../schemas/shared/index.js'
+import { EnriquecimentoService } from '../../services/enriquecimento.service.js'
+import { assertClienteDoUsuario } from '../helpers/assert-cliente-owner.js'
 
 const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.get(
@@ -42,7 +45,8 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
       },
     },
     async function listarClientesHandler(request) {
-      const { items, total } = await fastify.clienteRepo.listar(
+      const { items, total } = await fastify.clienteRepo.listarPorOwner(
+        request.user.sub,
         request.query.limit,
         request.query.offset,
       )
@@ -109,7 +113,10 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
       },
     },
     async function buscarClientePorIdHandler(request, reply) {
-      const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
+      const cliente = await fastify.clienteRepo.buscarPorIdDoOwner(
+        request.params.id,
+        request.user.sub,
+      )
       if (!cliente) {
         return reply.code(404).send({
           statusCode: 404,
@@ -137,7 +144,10 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
     },
     async function atualizarClienteHandler(request, reply) {
       request.log.info({ clienteId: request.params.id }, 'atualizando cliente')
-      const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
+      const cliente = await fastify.clienteRepo.buscarPorIdDoOwner(
+        request.params.id,
+        request.user.sub,
+      )
       if (!cliente) {
         return reply.code(404).send({
           statusCode: 404,
@@ -188,7 +198,7 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         'importando base interna',
       )
       const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
-      if (!cliente) {
+      if (!cliente || cliente.ownerId !== request.user.sub) {
         return reply.code(404).send({
           statusCode: 404,
           error: 'Not Found',
@@ -214,6 +224,39 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         message: 'Base interna importada.',
         totalImportados: request.body.compradores.length,
       })
+    },
+  )
+  fastify.get(
+    '/clientes/:id/compradores-enriquecidos',
+    {
+      schema: {
+        summary: 'Compradores com atributos consolidados',
+        description:
+          'Retorna todos os compradores da base interna com seus atributos originais mesclados com os últimos enriquecimentos bem-sucedidos de cada fonte.',
+        tags: ['Clientes'],
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: {
+          200: ListaCompradoresEnriquecidosResponse,
+          404: ErrorResponse,
+        },
+      },
+    },
+    async function compradoresEnriquecidosHandler(request) {
+      const cliente = await assertClienteDoUsuario(
+        fastify,
+        request.params.id,
+        request.user.sub,
+      )
+
+      const service = new EnriquecimentoService(
+        fastify.baseInternaRepo,
+        fastify.perfilRepo,
+        [],
+        fastify.enriquecimentoCompradorRepo,
+      )
+      const compradores = await service.buscarCompradoresConsolidados(cliente.id)
+      return { total: compradores.length, compradores }
     },
   )
 }

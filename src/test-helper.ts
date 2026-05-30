@@ -18,7 +18,16 @@ const TEST_ENV: Record<string, string> = {
   REDIS_URL: '',
   METRICS_ENABLED: 'true',
   TRACING_ENABLED: 'false',
+  UNDER_PRESSURE_ENABLED: 'false',
   SWAGGER_ENABLED: 'false',
+  CNPJ_API_URL: '',
+  CNPJ_API_KEY: '',
+  IBGE_BASE_URL: '',
+  IDH_MUNICIPAL_DATASET_PATH: '',
+  NOMINATIM_BASE_URL: '',
+  NOMINATIM_USER_AGENT: '',
+  NOMINATIM_THROTTLE_MS: '1000',
+  SETORES_CENSITARIOS_GEOJSON_PATH: '',
 }
 
 export async function buildTestApp(overrides: Record<string, string> = {}) {

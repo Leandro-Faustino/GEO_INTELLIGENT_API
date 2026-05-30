@@ -7,6 +7,7 @@ import {
 import { DerivarPerfilBody, PerfilResponse } from '../../schemas/perfis/index.js'
 import { ErrorResponse, IdParams } from '../../schemas/shared/index.js'
 import { EnriquecimentoService } from '../../services/enriquecimento.service.js'
+import { assertClienteDoUsuario } from '../helpers/assert-cliente-owner.js'
 
 const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.post(
@@ -22,12 +23,17 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
       },
     },
     async function derivarPerfilHandler(request, reply) {
+      const cliente = await assertClienteDoUsuario(
+        fastify,
+        request.body.clienteId,
+        request.user.sub,
+      )
       request.log.info(
         { clienteId: request.body.clienteId, tipoAlvo: request.body.tipoAlvo },
         'derivando perfil ideal',
       )
       const perfil = await fastify.derivacaoService.derivarPerfil(
-        request.body.clienteId,
+        cliente.id,
         request.body.tipoAlvo,
         request.body.nome,
       )
@@ -59,21 +65,11 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
       },
     },
     async function enriquecerPerfilHandler(request, reply) {
-      const cliente = await fastify.clienteRepo.buscarPorId(request.body.clienteId)
-      if (!cliente) {
-        return reply.code(404).send({
-          statusCode: 404,
-          error: 'Not Found',
-          message: `Cliente '${request.body.clienteId}' não encontrado.`,
-        })
-      }
-      if (cliente.ownerId !== request.user.sub) {
-        return reply.code(403).send({
-          statusCode: 403,
-          error: 'Forbidden',
-          message: 'Acesso negado a este recurso.',
-        })
-      }
+      const cliente = await assertClienteDoUsuario(
+        fastify,
+        request.body.clienteId,
+        request.user.sub,
+      )
 
       request.log.info(
         { clienteId: request.body.clienteId, fontes: request.body.fontes },
@@ -84,9 +80,10 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         fastify.baseInternaRepo,
         fastify.perfilRepo,
         fastify.adapters.todas.map((adapter) => ({ nome: adapter.nome, adapter })),
+        fastify.enriquecimentoCompradorRepo,
       )
       const resultado = await service.enriquecer(
-        request.body.clienteId,
+        cliente.id,
         request.body.fontes,
       )
 
@@ -126,6 +123,7 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         })
       }
 
+      await assertClienteDoUsuario(fastify, perfil.clienteId, request.user.sub)
       return perfil
     },
   )
@@ -155,7 +153,12 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
       },
     },
     async function listarPerfisPorClienteHandler(request) {
-      const perfis = await fastify.perfilRepo.buscarPorCliente(request.query.clienteId)
+      const cliente = await assertClienteDoUsuario(
+        fastify,
+        request.query.clienteId,
+        request.user.sub,
+      )
+      const perfis = await fastify.perfilRepo.buscarPorCliente(cliente.id)
       return perfis.map((perfil) => ({
         id: perfil.id,
         nome: perfil.nome,

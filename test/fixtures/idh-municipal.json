@@ -1,0 +1,18 @@
+[
+  {
+    "codigoIbge": 4209102,
+    "municipio": "Joinville",
+    "uf": "SC",
+    "idh": 0.809,
+    "ano": 2010,
+    "fonte": "Atlas do Desenvolvimento Humano"
+  },
+  {
+    "codigoIbge": 4205407,
+    "municipio": "Florianópolis",
+    "uf": "SC",
+    "idh": 0.847,
+    "ano": 2010,
+    "fonte": "Atlas do Desenvolvimento Humano"
+  }
+]

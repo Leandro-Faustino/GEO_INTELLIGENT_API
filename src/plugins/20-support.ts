@@ -19,6 +19,11 @@ export default fp(
   async function supportPlugin(fastify): Promise<void> {
     await fastify.register(sensible)
 
+    if (!fastify.config.UNDER_PRESSURE_ENABLED) {
+      fastify.log.info('under-pressure desabilitado para este ambiente')
+      return
+    }
+
     await fastify.register(underPressure, {
       maxEventLoopDelay: 1000,
       maxHeapUsedBytes: 256 * 1024 * 1024,

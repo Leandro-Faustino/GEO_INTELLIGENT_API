@@ -10,6 +10,9 @@ import type {
   OportunidadeDTO,
 } from '../repositories/interfaces/index.js'
 
+const MAX_OPORTUNIDADES = 200
+const VERSAO_MODELO_LOCAL = '0.1.0-local'
+
 export class AnaliseService {
   constructor(
     private readonly perfilRepo: IPerfilRepository,
@@ -22,9 +25,12 @@ export class AnaliseService {
     clienteId: string,
     escopo: string,
     limiar = 0.3,
+    perfilId?: string,
   ): Promise<AnaliseDTO> {
     const perfis = await this.perfilRepo.buscarPorCliente(clienteId)
-    const perfil = perfis[0]
+    const perfil = perfilId
+      ? (perfis.find((p) => p.id === perfilId) ?? perfis[0])
+      : perfis[0]
 
     if (!perfil) {
       throw Object.assign(new Error('Nenhum perfil encontrado para este cliente.'), {
@@ -43,23 +49,12 @@ export class AnaliseService {
       if (jaClientes.has(entidade.identificador)) continue
       if (perfil.exclusoes.includes(entidade.identificador)) continue
 
-      const similaridade = this.calcularSimilaridade(perfil.criterios, entidade)
-      if (similaridade < limiar) continue
+      const resultado = this.calcularSimilaridade(perfil.criterios, entidade)
+      if (resultado.total < limiar) continue
 
-      oportunidades.push({
-        id: randomUUID(),
-        entidadeAlvoId: entidade.identificador,
-        tipo: entidade.tipo,
-        justificativa: `${Math.round(similaridade * 100)}% de similaridade com o perfil ideal.`,
-        ganchoAbordagem: `${entidade.nome} possui perfil compatível com seus melhores clientes.`,
-        prioridade:
-          similaridade >= 0.8 ? 'alta' : similaridade >= 0.5 ? 'media' : 'baixa',
-        score: {
-          valor: arredondar(similaridade),
-          similaridade: arredondar(similaridade),
-          probConversao: arredondar(similaridade * 0.8),
-        },
-      })
+      oportunidades.push(montarOportunidade(entidade, resultado))
+
+      if (oportunidades.length >= MAX_OPORTUNIDADES) break
     }
 
     oportunidades.sort((a, b) => b.score.valor - a.score.valor)
@@ -70,7 +65,8 @@ export class AnaliseService {
       clienteId,
       tipo: perfil.tipo,
       escopo,
-      versaoModelo: '0.1.0',
+      versaoModelo: VERSAO_MODELO_LOCAL,
+      origem: 'local',
       oportunidades,
       createdAt: now,
       updatedAt: now,
@@ -80,21 +76,28 @@ export class AnaliseService {
   private calcularSimilaridade(
     criterios: CriterioDerivadoDTO[],
     entidade: EntidadeAlvoDTO,
-  ): number {
-    if (criterios.length === 0) return 0
+  ): SimilaridadeResultado {
+    if (criterios.length === 0) return { total: 0, criteriosMatching: [] }
 
     let somaPonderada = 0
     let somaPesos = 0
+    const criteriosMatching: SimilaridadeResultado['criteriosMatching'] = []
 
     for (const criterio of criterios) {
       somaPesos += criterio.peso
       const valor = entidade.atributos[criterio.nome]
       if (valor === undefined) continue
 
-      somaPonderada += this.avaliarCriterio(criterio, valor) * criterio.peso
+      const scoreNorm = this.avaliarCriterio(criterio, valor)
+      somaPonderada += scoreNorm * criterio.peso
+
+      if (scoreNorm > 0) {
+        criteriosMatching.push({ nome: criterio.nome, scoreNorm, peso: criterio.peso })
+      }
     }
 
-    return somaPesos > 0 ? somaPonderada / somaPesos : 0
+    const total = somaPesos > 0 ? somaPonderada / somaPesos : 0
+    return { total, criteriosMatching }
   }
 
   private avaliarCriterio(criterio: CriterioDerivadoDTO, valor: unknown): number {
@@ -125,6 +128,74 @@ export class AnaliseService {
         return 0
     }
   }
+}
+
+// ─── tipos internos ───────────────────────────────────────────────────────────
+
+interface SimilaridadeResultado {
+  total: number
+  criteriosMatching: Array<{ nome: string; scoreNorm: number; peso: number }>
+}
+
+// ─── helpers de montagem ──────────────────────────────────────────────────────
+
+function montarOportunidade(
+  entidade: EntidadeAlvoDTO,
+  resultado: SimilaridadeResultado,
+): OportunidadeDTO {
+  const { total, criteriosMatching } = resultado
+  const pct = Math.round(total * 100)
+  const probConversao = arredondar(total * 0.8)
+
+  return {
+    id: randomUUID(),
+    entidadeAlvoId: entidade.identificador,
+    tipo: entidade.tipo,
+    justificativa: montarJustificativa(pct, criteriosMatching),
+    ganchoAbordagem: montarGancho(entidade.nome, criteriosMatching),
+    prioridade: total >= 0.8 ? 'alta' : total >= 0.5 ? 'media' : 'baixa',
+    score: {
+      valor: arredondar(total),
+      similaridade: arredondar(total),
+      probConversao,
+    },
+  }
+}
+
+function montarJustificativa(
+  pct: number,
+  criteriosMatching: SimilaridadeResultado['criteriosMatching'],
+): string {
+  if (criteriosMatching.length === 0) {
+    return `${pct}% de similaridade com o perfil ideal.`
+  }
+
+  const top = criteriosMatching
+    .sort((a, b) => b.peso * b.scoreNorm - a.peso * a.scoreNorm)
+    .slice(0, 3)
+    .map((c) => `${c.nome} (${Math.round(c.scoreNorm * 100)}%)`)
+    .join(', ')
+
+  return `${pct}% de similaridade com o perfil ideal. Destaques: ${top}.`
+}
+
+function montarGancho(
+  nome: string,
+  criteriosMatching: SimilaridadeResultado['criteriosMatching'],
+): string {
+  if (criteriosMatching.length === 0) {
+    return `${nome} possui perfil compatível com seus melhores clientes.`
+  }
+
+  const topCriterio = criteriosMatching
+    .sort((a, b) => b.peso * b.scoreNorm - a.peso * a.scoreNorm)[0]
+
+  const atributo = topCriterio?.nome ?? ''
+  const sufixo = atributo
+    ? ` com ${atributo} alinhado ao perfil dos seus melhores clientes`
+    : ''
+
+  return `${nome} é um candidato de alta afinidade${sufixo} — oportunidade de abordagem direta.`
 }
 
 function arredondar(valor: number): number {

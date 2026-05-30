@@ -32,6 +32,8 @@ pnpm-debug.log*
 __pycache__/
 *.py[cod]
 .cache/
+.pydeps/
+.venv/
 .tmp/
 tmp/
 .turbo/
@@ -59,3 +61,11 @@ files fase 7 e 8 - python/
 files coleta/
 files 123/
 models/
+
+# Malhas geoespaciais locais podem ser grandes; versionar apenas placeholders/fixtures.
+data/ibge/setores/*
+!data/ibge/setores/.gitkeep
+!data/ibge/setores/README.md
+data/idh/*
+!data/idh/.gitkeep
+!data/idh/README.md

@@ -24,6 +24,7 @@ export const ExecutarLookalikeBody = Type.Object(
   {
     clienteId: Type.String({ minLength: 1 }),
     escopo: Type.String({ minLength: 1, maxLength: 200 }),
+    perfilId: Type.Optional(Type.String({ minLength: 1 })),
     limiarSimilaridade: Type.Optional(
       Type.Number({ minimum: 0, maximum: 1, default: 0.3 }),
     ),
@@ -34,12 +35,17 @@ export const ExecutarLookalikeBody = Type.Object(
   },
 )
 
+const OrigemSchema = Type.Optional(
+  Type.Union([Type.Literal('motor'), Type.Literal('local')]),
+)
+
 export const AnaliseResponse = Type.Object(
   {
     id: Type.String(),
     tipo: Type.String(),
     escopo: Type.String(),
     versaoModelo: Type.String(),
+    origem: OrigemSchema,
     totalOportunidades: Type.Integer(),
     oportunidades: Type.Array(OportunidadeSchema),
     ...Timestamps,
@@ -47,4 +53,22 @@ export const AnaliseResponse = Type.Object(
   { $id: 'schema:geolead:analises:response' },
 )
 
-export const analiseSchemas = [ExecutarLookalikeBody, AnaliseResponse]
+export const AnaliseListItemSchema = Type.Object({
+  id: Type.String(),
+  tipo: Type.String(),
+  escopo: Type.String(),
+  versaoModelo: Type.String(),
+  origem: OrigemSchema,
+  totalOportunidades: Type.Integer(),
+  ...Timestamps,
+})
+
+export const AnaliseListResponse = Type.Object(
+  {
+    total: Type.Integer(),
+    items: Type.Array(AnaliseListItemSchema),
+  },
+  { $id: 'schema:geolead:analises:list-response' },
+)
+
+export const analiseSchemas = [ExecutarLookalikeBody, AnaliseResponse, AnaliseListResponse]

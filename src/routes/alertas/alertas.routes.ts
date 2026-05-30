@@ -8,6 +8,7 @@ import {
   ScanAlertasResponse,
 } from '../../schemas/alertas/index.js'
 import { ErrorResponse, IdParams } from '../../schemas/shared/index.js'
+import { assertClienteDoUsuario } from '../helpers/assert-cliente-owner.js'
 
 const AlertaStatus = Type.Union([
   Type.Literal('novo'),
@@ -35,21 +36,11 @@ const alertasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> 
       },
     },
     async function escanearAlertasHandler(request, reply) {
-      const cliente = await fastify.clienteRepo.buscarPorId(request.body.clienteId)
-      if (!cliente) {
-        return reply.code(404).send({
-          statusCode: 404,
-          error: 'Not Found',
-          message: `Cliente '${request.body.clienteId}' não encontrado.`,
-        })
-      }
-      if (cliente.ownerId !== request.user.sub) {
-        return reply.code(403).send({
-          statusCode: 403,
-          error: 'Forbidden',
-          message: 'Acesso negado a este recurso.',
-        })
-      }
+      const cliente = await assertClienteDoUsuario(
+        fastify,
+        request.body.clienteId,
+        request.user.sub,
+      )
 
       request.log.info(
         {
@@ -61,7 +52,7 @@ const alertasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> 
       )
 
       const resultado = await fastify.alertaService.escanear(
-        request.body.clienteId,
+        cliente.id,
         request.body.escopo,
         request.body.limiar,
       )
@@ -97,25 +88,15 @@ const alertasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> 
         response: { 200: ListaAlertasResponse, 403: ErrorResponse, 404: ErrorResponse },
       },
     },
-    async function listarAlertasHandler(request, reply) {
-      const cliente = await fastify.clienteRepo.buscarPorId(request.query.clienteId)
-      if (!cliente) {
-        return reply.code(404).send({
-          statusCode: 404,
-          error: 'Not Found',
-          message: `Cliente '${request.query.clienteId}' não encontrado.`,
-        })
-      }
-      if (cliente.ownerId !== request.user.sub) {
-        return reply.code(403).send({
-          statusCode: 403,
-          error: 'Forbidden',
-          message: 'Acesso negado a este recurso.',
-        })
-      }
+    async function listarAlertasHandler(request) {
+      const cliente = await assertClienteDoUsuario(
+        fastify,
+        request.query.clienteId,
+        request.user.sub,
+      )
 
       return fastify.alertaService.listar(
-        request.query.clienteId,
+        cliente.id,
         request.query.status,
       )
     },
@@ -148,21 +129,7 @@ const alertasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> 
         })
       }
 
-      const cliente = await fastify.clienteRepo.buscarPorId(alertaExistente.clienteId)
-      if (!cliente) {
-        return reply.code(404).send({
-          statusCode: 404,
-          error: 'Not Found',
-          message: `Cliente '${alertaExistente.clienteId}' não encontrado.`,
-        })
-      }
-      if (cliente.ownerId !== request.user.sub) {
-        return reply.code(403).send({
-          statusCode: 403,
-          error: 'Forbidden',
-          message: 'Acesso negado a este recurso.',
-        })
-      }
+      await assertClienteDoUsuario(fastify, alertaExistente.clienteId, request.user.sub)
 
       request.log.info(
         {

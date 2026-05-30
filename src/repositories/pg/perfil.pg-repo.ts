@@ -4,15 +4,13 @@ import type {
   IPerfilRepository,
   PerfilIdealDTO,
 } from '../interfaces/index.js'
+import { runInClienteContext } from './tenant-context.js'
 
 export class PerfilPgRepository implements IPerfilRepository {
   constructor(private readonly pool: Pool) {}
 
   async salvar(perfil: PerfilIdealDTO): Promise<PerfilIdealDTO> {
-    const client = await this.pool.connect()
-    try {
-      await client.query('begin')
-
+    return runInClienteContext(this.pool, perfil.clienteId, async (client) => {
       const perfilResult = await client.query(
         `insert into perfis_ideais
           (id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at)
@@ -55,15 +53,8 @@ export class PerfilPgRepository implements IPerfilRepository {
           ],
         )
       }
-
-      await client.query('commit')
       return { ...mapPerfil(perfilResult.rows[0]), criterios: perfil.criterios }
-    } catch (error) {
-      await client.query('rollback')
-      throw error
-    } finally {
-      client.release()
-    }
+    })
   }
 
   async buscarPorId(id: string): Promise<PerfilIdealDTO | null> {
@@ -76,29 +67,34 @@ export class PerfilPgRepository implements IPerfilRepository {
 
     return {
       ...mapPerfil(result.rows[0]),
-      criterios: await this.buscarCriterios(id),
+      criterios: await this.buscarCriterios(id, this.pool),
     }
   }
 
   async buscarPorCliente(clienteId: string): Promise<PerfilIdealDTO[]> {
-    const result = await this.pool.query(
-      `select id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at
-       from perfis_ideais where cliente_id = $1 order by created_at desc`,
-      [clienteId],
-    )
+    return runInClienteContext(this.pool, clienteId, async (client) => {
+      const result = await client.query(
+        `select id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at
+         from perfis_ideais where cliente_id = $1 order by created_at desc`,
+        [clienteId],
+      )
 
-    const perfis: PerfilIdealDTO[] = []
-    for (const row of result.rows) {
-      perfis.push({
-        ...mapPerfil(row),
-        criterios: await this.buscarCriterios(String(row.id)),
-      })
-    }
-    return perfis
+      const perfis: PerfilIdealDTO[] = []
+      for (const row of result.rows) {
+        perfis.push({
+          ...mapPerfil(row),
+          criterios: await this.buscarCriterios(String(row.id), client),
+        })
+      }
+      return perfis
+    })
   }
 
-  private async buscarCriterios(perfilId: string): Promise<CriterioDerivadoDTO[]> {
-    const result = await this.pool.query(
+  private async buscarCriterios(
+    perfilId: string,
+    client: { query: Pool['query'] },
+  ): Promise<CriterioDerivadoDTO[]> {
+    const result = await client.query(
       `select nome, valor_min, valor_max, peso, tipo_comparacao
        from criterios_derivados where perfil_id = $1`,
       [perfilId],

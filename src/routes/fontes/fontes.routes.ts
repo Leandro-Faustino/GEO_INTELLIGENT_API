@@ -18,14 +18,20 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
     {
       schema: {
         summary: 'Listar fontes externas',
-        description: 'Lista adapters disponíveis e o estado atual do circuit breaker.',
+        description:
+          'Lista adapters disponíveis, seu modo operacional atual e o estado do circuit breaker.',
         tags: ['Fontes'],
         security: [{ bearerAuth: [] }],
         response: {
           200: Type.Array(
             Type.Object({
               nome: Type.String(),
+              modo: Type.String({ enum: ['real', 'mock', 'hibrido'] }),
               circuitState: Type.String(),
+              consecutiveFailures: Type.Integer({ minimum: 0 }),
+              providerMode: Type.Optional(Type.String()),
+              isOptional: Type.Optional(Type.Boolean()),
+              observacao: Type.Optional(Type.String()),
             }),
           ),
         },
@@ -34,7 +40,12 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
     async function listarFontesHandler() {
       return fastify.adapters.todas.map((adapter) => ({
         nome: adapter.nome,
-        circuitState: (adapter as { circuitState?: string }).circuitState ?? 'unknown',
+        modo: adapter.modo,
+        circuitState: adapter.circuitState,
+        consecutiveFailures: adapter.consecutiveFailures,
+        ...(adapter.providerMode ? { providerMode: adapter.providerMode } : {}),
+        ...(adapter.isOptional ? { isOptional: adapter.isOptional } : {}),
+        ...(adapter.observacao ? { observacao: adapter.observacao } : {}),
       }))
     },
   )

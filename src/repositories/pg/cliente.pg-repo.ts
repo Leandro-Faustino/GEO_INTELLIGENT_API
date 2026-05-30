@@ -46,6 +46,16 @@ export class ClientePgRepository implements IClienteRepository {
     return result.rows[0] ? mapCliente(result.rows[0]) : null
   }
 
+  async buscarPorIdDoOwner(id: string, ownerId: string): Promise<ClienteDTO | null> {
+    const result = await this.pool.query(
+      `select id, owner_id, razao_social, segmento, cidade, endereco, vertical,
+        parametros_negocio, created_at, updated_at
+       from clientes where id = $1 and owner_id = $2`,
+      [id, ownerId],
+    )
+    return result.rows[0] ? mapCliente(result.rows[0]) : null
+  }
+
   async listar(limit: number, offset: number): Promise<{ items: ClienteDTO[]; total: number }> {
     const result = await this.pool.query(
       `select id, owner_id, razao_social, segmento, cidade, endereco, vertical,
@@ -54,6 +64,27 @@ export class ClientePgRepository implements IClienteRepository {
        order by created_at desc
        limit $1 offset $2`,
       [limit, offset],
+    )
+
+    return {
+      items: result.rows.map(mapCliente),
+      total: Number(result.rows[0]?.total_count ?? 0),
+    }
+  }
+
+  async listarPorOwner(
+    ownerId: string,
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ClienteDTO[]; total: number }> {
+    const result = await this.pool.query(
+      `select id, owner_id, razao_social, segmento, cidade, endereco, vertical,
+        parametros_negocio, created_at, updated_at, count(*) over() as total_count
+       from clientes
+       where owner_id = $1
+       order by created_at desc
+       limit $2 offset $3`,
+      [ownerId, limit, offset],
     )
 
     return {

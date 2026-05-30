@@ -4,6 +4,7 @@ import {
   AnalisarTerritorioBody,
   TerritorioResponse,
 } from '../../schemas/territorio/index.js'
+import { assertClienteDoUsuario } from '../helpers/assert-cliente-owner.js'
 
 const territorioRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.post(
@@ -24,21 +25,11 @@ const territorioRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<voi
       },
     },
     async function analisarTerritorioHandler(request, reply) {
-      const cliente = await fastify.clienteRepo.buscarPorId(request.body.clienteId)
-      if (!cliente) {
-        return reply.code(404).send({
-          statusCode: 404,
-          error: 'Not Found',
-          message: `Cliente '${request.body.clienteId}' não encontrado.`,
-        })
-      }
-      if (cliente.ownerId !== request.user.sub) {
-        return reply.code(403).send({
-          statusCode: 403,
-          error: 'Forbidden',
-          message: 'Acesso negado a este recurso.',
-        })
-      }
+      const cliente = await assertClienteDoUsuario(
+        fastify,
+        request.body.clienteId,
+        request.user.sub,
+      )
 
       request.log.info(
         {
@@ -50,7 +41,7 @@ const territorioRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<voi
       )
 
       const resultado = await fastify.territorioService.analisar(
-        request.body.clienteId,
+        cliente.id,
         request.body.regioes,
         request.body.limiar,
       )

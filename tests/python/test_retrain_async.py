@@ -113,11 +113,16 @@ def test_enfileirar_celery_retorna_task_id(monkeypatch):
         def send_task(self, name, args):
             assert name == "geolead.retrain.retreinar"
             assert args[0] == "c1"
+            assert args[2] == "feedback-1"
             return AsyncResultFake()
 
     monkeypatch.setattr(tasks, "_get_celery_app", lambda: CeleryFake())
 
-    resultado = tasks.enfileirar_retreino("c1", [{"atributos": {}, "converteu": True}])
+    resultado = tasks.enfileirar_retreino(
+        "c1",
+        [{"atributos": {}, "converteu": True}],
+        feedback_id="feedback-1",
+    )
 
     assert resultado == {
         "modo": "celery",
@@ -129,9 +134,10 @@ def test_enfileirar_celery_retorna_task_id(monkeypatch):
 def test_feedback_enfileirado_responde_202(monkeypatch):
     import app.api.routes as routes
 
-    def fake_enfileirar(cliente_id, resultados):
+    def fake_enfileirar(cliente_id, resultados, feedback_id=None):
         assert cliente_id.startswith("async-test-")
         assert len(resultados) == 1
+        assert feedback_id == "feedback-123"
         return {"modo": "celery", "enfileirado": True, "task_id": "task-456"}
 
     monkeypatch.setattr(routes, "enfileirar_retreino", fake_enfileirar)
@@ -139,6 +145,7 @@ def test_feedback_enfileirado_responde_202(monkeypatch):
     response = post(
         "/feedback",
         {
+            "feedback_id": "feedback-123",
             "cliente_id": f"async-test-{uuid.uuid4()}",
             "resultados": [
                 {
@@ -155,3 +162,31 @@ def test_feedback_enfileirado_responde_202(monkeypatch):
     assert body["modo"] == "celery"
     assert body["enfileirado"] is True
     assert body["task_id"] == "task-456"
+
+
+def test_feedback_idempotente_nao_retreina_duas_vezes(monkeypatch, tmp_path):
+    monkeypatch.setenv("RETRAIN_MODE", "inline")
+    monkeypatch.setenv("MODELS_DIR", str(tmp_path / "models"))
+    get_settings.cache_clear()
+    _reload_tasks()
+
+    payload = {
+        "feedback_id": "feedback-unico-1",
+        "cliente_id": f"async-test-{uuid.uuid4()}",
+        "resultados": [
+            {
+                "entidade_alvo_id": "e1",
+                "converteu": True,
+                "atributos": {"x": 1},
+            },
+        ],
+    }
+
+    primeira = post("/feedback", payload)
+    segunda = post("/feedback", payload)
+
+    assert primeira.status_code == 200
+    assert segunda.status_code == 200
+    assert primeira.json()["retreino"]["idempotente"] is False
+    assert segunda.json()["retreino"]["idempotente"] is True
+    assert segunda.json()["retreino"]["novos_neste_lote"] == 0

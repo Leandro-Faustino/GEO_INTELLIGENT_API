@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildTestApp, loginAs } from '../../src/test-helper.js'
 
-test('raio-x: retorna 503 quando motor nao esta configurado', async () => {
+test('raio-x: usa fallback local quando motor nao esta configurado', async () => {
   const app = await buildTestApp()
   try {
     const token = await loginAs(app, 'alice@example.com', 'alice-secret-123')
@@ -13,11 +13,44 @@ test('raio-x: retorna 503 quando motor nao esta configurado', async () => {
       payload: { compradores: compradoresDeTeste() },
     })
 
-    assert.equal(res.statusCode, 503)
-    assert.equal(
-      res.json<{ message: string }>().message,
-      'Motor de inteligência indisponível.',
-    )
+    assert.equal(res.statusCode, 200)
+    const body = res.json<{
+      retrato: { frase: string }
+      fatores: unknown[]
+      estatisticas: { totalClientes: number; ativos: number }
+      segmentos: unknown[]
+      potencial: { mensagem: string; cta: string }
+    }>()
+    assert.equal(body.estatisticas.totalClientes, 4)
+    assert.equal(body.estatisticas.ativos, 3)
+    assert.ok(body.fatores.length > 0)
+    assert.ok(body.retrato.frase.length > 0)
+    assert.ok(body.potencial.mensagem.length > 0)
+  } finally {
+    await app.close()
+  }
+})
+
+test('raio-x: usa fallback local quando motor falha com 503', async () => {
+  const app = await buildTestApp()
+  try {
+    const token = await loginAs(app, 'alice@example.com', 'alice-secret-123')
+    ;(app as unknown as { motor: { raioX: () => Promise<unknown> } }).motor = {
+      async raioX() {
+        throw Object.assign(new Error('motor down'), { statusCode: 503 })
+      },
+    }
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/raio-x',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { compradores: compradoresDeTeste() },
+    })
+
+    assert.equal(res.statusCode, 200)
+    const body = res.json<{ estatisticas: { totalClientes: number } }>()
+    assert.equal(body.estatisticas.totalClientes, 4)
   } finally {
     await app.close()
   }
@@ -31,9 +64,9 @@ test('raio-x: serializa resposta tipada e remove campos extras', async () => {
       {
         async raioX(payload: unknown) {
           const body = payload as {
-            compradores: Array<{ atributos_originais?: { cidade?: string } }>
+            compradores: Array<{ atributosOriginais?: { cidade?: string } }>
           }
-          assert.equal(body.compradores[0]?.atributos_originais?.cidade, 'São Paulo')
+          assert.equal(body.compradores[0]?.atributosOriginais?.cidade, 'São Paulo')
 
           return {
             retrato: {

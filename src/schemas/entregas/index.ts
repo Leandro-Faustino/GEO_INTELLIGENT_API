@@ -7,6 +7,7 @@ import { Timestamps } from '../shared/index.js'
 export const MontarEntregaBody = Type.Object(
   {
     clienteId: Type.String({ minLength: 1 }),
+    analiseId: Type.String({ minLength: 1 }),
     periodo: Type.String({ minLength: 1, maxLength: 50 }),
     formato: Type.String({
       enum: ['planilha', 'pdf', 'dashboard', 'api'],
@@ -52,6 +53,8 @@ export const FeedbackBody = Type.Object(
 export const EntregaResponse = Type.Object(
   {
     id: Type.String(),
+    clienteId: Type.String(),
+    analiseId: Type.String(),
     tipo: Type.String(),
     periodo: Type.String(),
     formato: Type.String(),
@@ -61,4 +64,35 @@ export const EntregaResponse = Type.Object(
   { $id: 'schema:geolead:entregas:response' },
 )
 
-export const entregaSchemas = [MontarEntregaBody, FeedbackBody, EntregaResponse]
+export const FeedbackResponse = Type.Object(
+  {
+    id: Type.String(),
+    entregaId: Type.String(),
+    exclusoes: Type.Array(Type.String()),
+    ajustes: Type.Array(
+      Type.Object({
+        criterio: Type.String(),
+        novoPeso: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+        novoMin: Type.Optional(Type.Unknown()),
+        novoMax: Type.Optional(Type.Unknown()),
+      }),
+    ),
+    resultados: Type.Array(
+      Type.Object({
+        entidadeAlvoId: Type.String(),
+        converteu: Type.Boolean(),
+        ticketReal: Type.Optional(Type.Number({ minimum: 0 })),
+      }),
+    ),
+    observacoes: Type.String(),
+    createdAt: Type.String({ format: 'date-time' }),
+  },
+  { $id: 'schema:geolead:entregas:feedback-response' },
+)
+
+export const entregaSchemas = [
+  MontarEntregaBody,
+  FeedbackBody,
+  EntregaResponse,
+  FeedbackResponse,
+]

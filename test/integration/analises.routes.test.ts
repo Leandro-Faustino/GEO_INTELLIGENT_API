@@ -39,6 +39,49 @@ test('analises: executa lookalike e retorna oportunidades ranqueadas', async () 
   }
 })
 
+test('analises: outro usuário não executa nem consulta análise de cliente alheio', async () => {
+  const app = await buildTestApp()
+  try {
+    const aliceToken = await loginAs(app, 'alice@example.com', 'alice-secret-123')
+    const bobToken = await loginAs(app, 'bob@example.com', 'bob-secret-456')
+    const clienteId = await prepararPerfil(app, aliceToken)
+
+    const analiseAlice = await app.inject({
+      method: 'POST',
+      url: '/analises/executar',
+      headers: { authorization: `Bearer ${aliceToken}` },
+      payload: {
+        clienteId,
+        escopo: 'zona-sul',
+        limiarSimilaridade: 0.3,
+      },
+    })
+    assert.equal(analiseAlice.statusCode, 201)
+    const analiseId = analiseAlice.json<{ id: string }>().id
+
+    const executarBob = await app.inject({
+      method: 'POST',
+      url: '/analises/executar',
+      headers: { authorization: `Bearer ${bobToken}` },
+      payload: {
+        clienteId,
+        escopo: 'zona-sul',
+        limiarSimilaridade: 0.3,
+      },
+    })
+    assert.equal(executarBob.statusCode, 403)
+
+    const buscarBob = await app.inject({
+      method: 'GET',
+      url: `/analises/${analiseId}`,
+      headers: { authorization: `Bearer ${bobToken}` },
+    })
+    assert.equal(buscarBob.statusCode, 403)
+  } finally {
+    await app.close()
+  }
+})
+
 async function prepararPerfil(
   app: FastifyInstance,
   token: string,

@@ -63,6 +63,7 @@ class ResultadoConversao(ContractModel):
 
 
 class FeedbackRequest(ContractModel):
+    feedback_id: str | None = None
     cliente_id: str
     resultados: list[ResultadoConversao]
 

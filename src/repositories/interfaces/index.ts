@@ -82,6 +82,7 @@ export interface AnaliseDTO {
   tipo: string
   escopo: string
   versaoModelo: string
+  origem?: 'motor' | 'local'
   oportunidades: OportunidadeDTO[]
   createdAt: string
   updatedAt: string
@@ -90,6 +91,7 @@ export interface AnaliseDTO {
 export interface EntregaDTO {
   id: string
   clienteId: string
+  analiseId: string
   tipo: string
   periodo: string
   formato: string
@@ -98,10 +100,51 @@ export interface EntregaDTO {
   updatedAt: string
 }
 
+export interface FeedbackResultadoDTO {
+  entidadeAlvoId: string
+  converteu: boolean
+  atributos: Record<string, unknown>
+  ticketReal?: number
+}
+
+export interface FeedbackEntregaDTO {
+  id: string
+  entregaId: string
+  exclusoes: string[]
+  ajustes: Array<{
+    criterio: string
+    novoPeso?: number
+    novoMin?: unknown
+    novoMax?: unknown
+  }>
+  resultados: FeedbackResultadoDTO[]
+  observacoes: string
+  createdAt: string
+}
+
+export interface EnriquecimentoCompradorDTO {
+  id: string
+  clienteId: string
+  compradorIdentificador: string
+  compradorNome: string
+  fonte: string
+  status: 'sucesso' | 'falha'
+  payload: Record<string, unknown>
+  erro: string
+  createdAt: string
+  expiresAt: string | null
+}
+
 export interface IClienteRepository {
   salvar(cliente: ClienteDTO): Promise<ClienteDTO>
   buscarPorId(id: string): Promise<ClienteDTO | null>
+  buscarPorIdDoOwner(id: string, ownerId: string): Promise<ClienteDTO | null>
   listar(limit: number, offset: number): Promise<{ items: ClienteDTO[]; total: number }>
+  listarPorOwner(
+    ownerId: string,
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ClienteDTO[]; total: number }>
 }
 
 export interface IBaseInternaRepository {
@@ -120,14 +163,37 @@ export interface IEntidadeAlvoRepository {
   buscarPorEscopo(escopo: string): Promise<EntidadeAlvoDTO[]>
 }
 
+export type AnaliseResumoDTO = Omit<AnaliseDTO, 'oportunidades'> & {
+  totalOportunidades: number
+}
+
 export interface IAnaliseRepository {
   salvar(analise: AnaliseDTO): Promise<AnaliseDTO>
   buscarPorId(id: string): Promise<AnaliseDTO | null>
+  listarPorCliente(
+    clienteId: string,
+    limit: number,
+    offset: number,
+  ): Promise<{ items: AnaliseResumoDTO[]; total: number }>
 }
 
 export interface IEntregaRepository {
   salvar(entrega: EntregaDTO): Promise<EntregaDTO>
   buscarPorId(id: string): Promise<EntregaDTO | null>
+}
+
+export interface IFeedbackRepository {
+  salvar(feedback: FeedbackEntregaDTO): Promise<FeedbackEntregaDTO>
+  buscarPorEntregaId(entregaId: string): Promise<FeedbackEntregaDTO[]>
+}
+
+export interface IEnriquecimentoCompradorRepository {
+  salvar(enriquecimento: EnriquecimentoCompradorDTO): Promise<EnriquecimentoCompradorDTO>
+  buscarPorCliente(
+    clienteId: string,
+    filtros?: { compradorIdentificador?: string; fonte?: string },
+  ): Promise<EnriquecimentoCompradorDTO[]>
+  buscarUltimosPorCliente(clienteId: string): Promise<EnriquecimentoCompradorDTO[]>
 }
 
 export interface AlertaDTO {
@@ -159,3 +225,10 @@ export interface IAlertaRepository {
     entidadeAlvoId: string,
   ): Promise<boolean>
 }
+
+
+export type {
+  UsuarioDTO,
+  CriarUsuarioInput,
+  IUsuarioRepository,
+} from './usuario.repository.js'

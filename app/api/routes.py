@@ -91,7 +91,14 @@ async def registrar_feedback(
         }
         for resultado in req.resultados
     ]
-    enfileiramento = enfileirar_retreino(req.cliente_id, resultados)
+    if req.feedback_id:
+        enfileiramento = enfileirar_retreino(
+            req.cliente_id,
+            resultados,
+            feedback_id=req.feedback_id,
+        )
+    else:
+        enfileiramento = enfileirar_retreino(req.cliente_id, resultados)
     convertidos = sum(1 for resultado in req.resultados if resultado.converteu)
 
     body = {

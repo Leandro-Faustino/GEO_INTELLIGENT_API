@@ -52,9 +52,17 @@ def _get_celery_app():
         autoretry_for=(Exception,),
         max_retries=3,
     )
-    def _retreinar_task(cliente_id: str, resultados: list[dict[str, Any]]) -> dict[str, Any]:
+    def _retreinar_task(
+        cliente_id: str,
+        resultados: list[dict[str, Any]],
+        feedback_id: str | None = None,
+    ) -> dict[str, Any]:
         trainer = Trainer(models_dir=get_settings().models_dir)
-        return trainer.registrar_e_treinar(cliente_id, resultados)
+        return trainer.registrar_e_treinar(
+            cliente_id,
+            resultados,
+            feedback_id=feedback_id,
+        )
 
     return _celery_app
 
@@ -62,12 +70,13 @@ def _get_celery_app():
 def enfileirar_retreino(
     cliente_id: str,
     resultados: list[dict[str, Any]],
+    feedback_id: str | None = None,
 ) -> dict[str, Any]:
     celery_app = _get_celery_app()
     if celery_app is not None:
         async_result = celery_app.send_task(
             "geolead.retrain.retreinar",
-            args=[cliente_id, resultados],
+            args=[cliente_id, resultados, feedback_id],
         )
         return {
             "modo": "celery",
@@ -76,7 +85,11 @@ def enfileirar_retreino(
         }
 
     trainer = Trainer(models_dir=get_settings().models_dir)
-    resultado = trainer.registrar_e_treinar(cliente_id, resultados)
+    resultado = trainer.registrar_e_treinar(
+        cliente_id,
+        resultados,
+        feedback_id=feedback_id,
+    )
     return {
         "modo": "inline",
         "enfileirado": False,
