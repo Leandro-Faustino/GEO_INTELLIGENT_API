@@ -197,8 +197,8 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         },
         'importando base interna',
       )
-      const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
-      if (!cliente || cliente.ownerId !== request.user.sub) {
+      const cliente = await fastify.clienteRepo.buscarPorIdDoOwner(request.params.id, request.user.sub)
+      if (!cliente) {
         return reply.code(404).send({
           statusCode: 404,
           error: 'Not Found',

@@ -29,3 +29,5 @@ create policy enriquecimentos_compradores_tenant_isolation
   on enriquecimentos_compradores
   using (cliente_id::text = current_setting('app.current_cliente_id', true))
   with check (cliente_id::text = current_setting('app.current_cliente_id', true));
+
+grant select, insert, update, delete on enriquecimentos_compradores to geolead_app;

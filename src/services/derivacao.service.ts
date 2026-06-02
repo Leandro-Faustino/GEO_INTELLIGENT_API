@@ -35,7 +35,10 @@ export class DerivacaoService {
     }
 
     const bonsCompradores = base.compradores.filter(
-      (comprador) => comprador.ativo && comprador.frequencia >= 2,
+      (comprador) =>
+        comprador.ativo &&
+        comprador.frequencia >= 2 &&
+        comprador.tipo === tipoAlvo,
     )
     if (bonsCompradores.length < 3) {
       throw Object.assign(

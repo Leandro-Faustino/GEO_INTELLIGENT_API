@@ -5,8 +5,7 @@ import {
   EnriquecimentoResponse,
 } from '../../schemas/enriquecimento/index.js'
 import { DerivarPerfilBody, PerfilResponse } from '../../schemas/perfis/index.js'
-import { ErrorResponse, IdParams } from '../../schemas/shared/index.js'
-import { EnriquecimentoService } from '../../services/enriquecimento.service.js'
+import { ErrorResponse, IdParams, Timestamps } from '../../schemas/shared/index.js'
 import { assertClienteDoUsuario } from '../helpers/assert-cliente-owner.js'
 
 const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
@@ -76,15 +75,10 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         'enriquecendo perfil com fontes externas',
       )
 
-      const service = new EnriquecimentoService(
-        fastify.baseInternaRepo,
-        fastify.perfilRepo,
-        fastify.adapters.todas.map((adapter) => ({ nome: adapter.nome, adapter })),
-        fastify.enriquecimentoCompradorRepo,
-      )
-      const resultado = await service.enriquecer(
+      const resultado = await fastify.enriquecimentoService.enriquecer(
         cliente.id,
         request.body.fontes,
+        request.body.tipoAlvo,
       )
 
       request.log.info(
@@ -137,7 +131,18 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         tags: ['Perfis'],
         security: [{ bearerAuth: [] }],
         querystring: Type.Object(
-          { clienteId: Type.String({ minLength: 1 }) },
+          {
+            clienteId: Type.String({ minLength: 1 }),
+            tipo: Type.Optional(
+              Type.Union([
+                Type.Literal('pj'),
+                Type.Literal('pf'),
+                Type.Literal('territorio'),
+              ]),
+            ),
+            limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+            offset: Type.Optional(Type.Integer({ minimum: 0, default: 0 })),
+          },
           { additionalProperties: false },
         ),
         response: {
@@ -147,23 +152,25 @@ const perfisRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
               nome: Type.String(),
               tipo: Type.String(),
               totalCriterios: Type.Integer(),
+              ...Timestamps,
             }),
           ),
         },
       },
     },
     async function listarPerfisPorClienteHandler(request) {
-      const cliente = await assertClienteDoUsuario(
-        fastify,
-        request.query.clienteId,
-        request.user.sub,
-      )
-      const perfis = await fastify.perfilRepo.buscarPorCliente(cliente.id)
+      const { clienteId, tipo, limit = 20, offset = 0 } = request.query
+      const cliente = await assertClienteDoUsuario(fastify, clienteId, request.user.sub)
+      const filtros: { tipo?: string; limit?: number; offset?: number } = { limit, offset }
+      if (tipo) filtros.tipo = tipo
+      const perfis = await fastify.perfilRepo.buscarPorCliente(cliente.id, filtros)
       return perfis.map((perfil) => ({
         id: perfil.id,
         nome: perfil.nome,
         tipo: perfil.tipo,
         totalCriterios: perfil.criterios.length,
+        createdAt: perfil.createdAt,
+        updatedAt: perfil.updatedAt,
       }))
     },
   )

@@ -6,7 +6,7 @@ import { ErrorResponse } from '../../schemas/shared/index.js'
 const FonteParams = Type.Object(
   {
     fonte: Type.String({
-      enum: ['cnpj', 'ibge', 'geocoder', 'registro-imoveis'],
+      enum: ['cnpj', 'ibge', 'geocoder', 'registro-imoveis', 'cnpj-receita-federal', 'ibge-censo'],
     }),
   },
   { additionalProperties: false },
@@ -133,14 +133,16 @@ function resolverAdapter(
   fastify: FastifyInstance,
   fonte: string,
 ): FastifyInstance['adapters']['todas'][number] {
-  const adapters = {
+  const adapters: Record<string, FastifyInstance['adapters']['todas'][number]> = {
     cnpj: fastify.adapters.cnpj,
+    'cnpj-receita-federal': fastify.adapters.cnpj,
     ibge: fastify.adapters.ibge,
+    'ibge-censo': fastify.adapters.ibge,
     geocoder: fastify.adapters.geocoder,
     'registro-imoveis': fastify.adapters.registroImoveis,
   }
 
-  return adapters[fonte as keyof typeof adapters]
+  return adapters[fonte]
 }
 
 export default fontesRoutes

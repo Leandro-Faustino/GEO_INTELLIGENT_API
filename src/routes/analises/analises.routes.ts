@@ -45,7 +45,7 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         try {
           const analise = await executarNoMotor(
             fastify,
-            { ...request.body, clienteId: cliente.id },
+            { ...request.body, clienteId: cliente.id, tipoAlvo: request.body.tipoAlvo },
             request.id,
           )
           request.log.info(
@@ -77,6 +77,7 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         request.body.escopo,
         request.body.limiarSimilaridade,
         request.body.perfilId,
+        request.body.tipoAlvo,
       )
 
       request.log.info(
@@ -107,6 +108,10 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
             clienteId: Type.String({ minLength: 1 }),
             limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
             offset: Type.Optional(Type.Integer({ minimum: 0, default: 0 })),
+            escopo: Type.Optional(Type.String({ minLength: 1 })),
+            origem: Type.Optional(
+              Type.Union([Type.Literal('local'), Type.Literal('motor')]),
+            ),
           },
           { additionalProperties: false },
         ),
@@ -114,10 +119,19 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
       },
     },
     async function listarAnalisesHandler(request) {
-      const { clienteId, limit = 20, offset = 0 } = request.query
+      const { clienteId, limit = 20, offset = 0, escopo, origem } = request.query
       await assertClienteDoUsuario(fastify, clienteId, request.user.sub)
 
-      const { items, total } = await fastify.analiseRepo.listarPorCliente(clienteId, limit, offset)
+      const filtros: { escopo?: string; origem?: string } = {}
+      if (escopo) filtros.escopo = escopo
+      if (origem) filtros.origem = origem
+
+      const { items, total } = await fastify.analiseRepo.listarPorCliente(
+        clienteId,
+        limit,
+        offset,
+        filtros,
+      )
       return { total, items }
     },
   )
@@ -157,7 +171,7 @@ export default analisesRoutes
 
 async function executarNoMotor(
   fastify: Parameters<FastifyPluginAsyncTypebox>[0],
-  body: { clienteId: string; escopo: string; perfilId?: string; limiarSimilaridade?: number },
+  body: { clienteId: string; escopo: string; perfilId?: string; tipoAlvo?: string; limiarSimilaridade?: number },
   requestId: string,
 ): Promise<AnaliseDTO> {
   if (!fastify.motor) {
@@ -166,19 +180,29 @@ async function executarNoMotor(
 
   const perfis = await fastify.perfilRepo.buscarPorCliente(body.clienteId)
   const perfil = body.perfilId
-    ? (perfis.find((p) => p.id === body.perfilId) ?? perfis[0])
-    : perfis[0]
+    ? perfis.find((p) => p.id === body.perfilId)
+    : body.tipoAlvo
+      ? (perfis.find((p) => p.tipo === body.tipoAlvo) ?? perfis[0])
+      : perfis[0]
 
+  if (!perfil && body.perfilId) {
+    throw Object.assign(
+      new Error(`Perfil '${body.perfilId}' não encontrado para este cliente.`),
+      { statusCode: 404 },
+    )
+  }
   if (!perfil) {
     throw Object.assign(new Error('Nenhum perfil encontrado para este cliente.'), {
       statusCode: 404,
     })
   }
 
-  const entidades = await fastify.entidadeAlvoRepo.buscarPorEscopo(body.escopo)
+  const entidades = await fastify.entidadeAlvoRepo.buscarPorEscopo(body.escopo, perfil.tipo)
   const coletadas = await fastify.coletaService.coletar(
     perfil.criterios,
     body.escopo,
+    200,
+    perfil.tipo,
   )
   if (coletadas.length > 0) {
     await fastify.entidadeAlvoRepo.salvarLote(coletadas)
@@ -203,6 +227,7 @@ async function executarNoMotor(
   const analise: AnaliseDTO = {
     id: randomUUID(),
     clienteId: body.clienteId,
+    perfilId: perfil.id,
     tipo: perfil.tipo,
     escopo: body.escopo,
     versaoModelo: resultado.versaoModelo,

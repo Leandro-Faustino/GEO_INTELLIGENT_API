@@ -4,6 +4,7 @@ import type {
   IEnriquecimentoCompradorRepository,
 } from '../interfaces/index.js'
 import { runInClienteContext } from './tenant-context.js'
+import { toIso } from './utils.js'
 
 export class EnriquecimentoCompradorPgRepository
   implements IEnriquecimentoCompradorRepository
@@ -99,6 +100,3 @@ function mapEnriquecimento(row: Record<string, unknown>): EnriquecimentoComprado
   }
 }
 
-function toIso(value: unknown): string {
-  return value instanceof Date ? value.toISOString() : String(value)
-}

@@ -5,6 +5,7 @@ import type {
   IFeedbackRepository,
 } from '../interfaces/index.js'
 import { runInClienteContext } from './tenant-context.js'
+import { toIso } from './utils.js'
 
 export class FeedbackPgRepository implements IFeedbackRepository {
   constructor(private readonly pool: Pool) {}
@@ -93,6 +94,3 @@ function arrayObjetos(value: unknown): Record<string, unknown>[] {
     : []
 }
 
-function toIso(value: unknown): string {
-  return value instanceof Date ? value.toISOString() : String(value)
-}

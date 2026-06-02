@@ -79,6 +79,7 @@ export interface OportunidadeDTO {
 export interface AnaliseDTO {
   id: string
   clienteId: string
+  perfilId?: string
   tipo: string
   escopo: string
   versaoModelo: string
@@ -155,12 +156,16 @@ export interface IBaseInternaRepository {
 export interface IPerfilRepository {
   salvar(perfil: PerfilIdealDTO): Promise<PerfilIdealDTO>
   buscarPorId(id: string): Promise<PerfilIdealDTO | null>
-  buscarPorCliente(clienteId: string): Promise<PerfilIdealDTO[]>
+  buscarPorIdParaCliente(id: string, clienteId: string): Promise<PerfilIdealDTO | null>
+  buscarPorCliente(
+    clienteId: string,
+    filtros?: { tipo?: string; limit?: number; offset?: number },
+  ): Promise<PerfilIdealDTO[]>
 }
 
 export interface IEntidadeAlvoRepository {
   salvarLote(entidades: EntidadeAlvoDTO[]): Promise<void>
-  buscarPorEscopo(escopo: string): Promise<EntidadeAlvoDTO[]>
+  buscarPorEscopo(escopo: string, tipo?: string): Promise<EntidadeAlvoDTO[]>
 }
 
 export type AnaliseResumoDTO = Omit<AnaliseDTO, 'oportunidades'> & {
@@ -170,16 +175,23 @@ export type AnaliseResumoDTO = Omit<AnaliseDTO, 'oportunidades'> & {
 export interface IAnaliseRepository {
   salvar(analise: AnaliseDTO): Promise<AnaliseDTO>
   buscarPorId(id: string): Promise<AnaliseDTO | null>
+  buscarPorIdParaCliente(id: string, clienteId: string): Promise<AnaliseDTO | null>
   listarPorCliente(
     clienteId: string,
     limit: number,
     offset: number,
+    filtros?: { escopo?: string; origem?: string },
   ): Promise<{ items: AnaliseResumoDTO[]; total: number }>
 }
 
 export interface IEntregaRepository {
   salvar(entrega: EntregaDTO): Promise<EntregaDTO>
   buscarPorId(id: string): Promise<EntregaDTO | null>
+  listarPorCliente(
+    clienteId: string,
+    limit: number,
+    offset: number,
+  ): Promise<{ items: EntregaDTO[]; total: number }>
 }
 
 export interface IFeedbackRepository {

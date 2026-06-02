@@ -163,7 +163,12 @@ export class AdaptadorCNPJ extends BaseAdapter {
   async enriquecer(identificador: string): Promise<Record<string, unknown>> {
     return this.executarProtegido('enriquecer', async (signal) => {
       const cnpj = extrairCNPJ(identificador)
-      if (!cnpj) return mockEnriquecimento(identificador, this.nome)
+      if (!cnpj) {
+        throw Object.assign(
+          new Error(`Identificador '${identificador}' não é um CNPJ válido — enriquecimento CNPJ não se aplica`),
+          { statusCode: 422, code: 'IDENTIFICADOR_NAO_CNPJ' },
+        )
+      }
 
       const [receitaResult, brasilResult] = await Promise.allSettled([
         this.receitaWsUrl

@@ -25,6 +25,9 @@ export const ExecutarLookalikeBody = Type.Object(
     clienteId: Type.String({ minLength: 1 }),
     escopo: Type.String({ minLength: 1, maxLength: 200 }),
     perfilId: Type.Optional(Type.String({ minLength: 1 })),
+    tipoAlvo: Type.Optional(
+      Type.Union([Type.Literal('pj'), Type.Literal('pf'), Type.Literal('territorio')]),
+    ),
     limiarSimilaridade: Type.Optional(
       Type.Number({ minimum: 0, maximum: 1, default: 0.3 }),
     ),
@@ -42,6 +45,8 @@ const OrigemSchema = Type.Optional(
 export const AnaliseResponse = Type.Object(
   {
     id: Type.String(),
+    clienteId: Type.String(),
+    perfilId: Type.Optional(Type.String()),
     tipo: Type.String(),
     escopo: Type.String(),
     versaoModelo: Type.String(),
@@ -55,6 +60,8 @@ export const AnaliseResponse = Type.Object(
 
 export const AnaliseListItemSchema = Type.Object({
   id: Type.String(),
+  clienteId: Type.String(),
+  perfilId: Type.Optional(Type.String()),
   tipo: Type.String(),
   escopo: Type.String(),
   versaoModelo: Type.String(),

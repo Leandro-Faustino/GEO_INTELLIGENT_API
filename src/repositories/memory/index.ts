@@ -97,12 +97,23 @@ export class MemoryPerfilRepo implements IPerfilRepository {
     return item ? clone(item) : null
   }
 
-  async buscarPorCliente(clienteId: string): Promise<PerfilIdealDTO[]> {
-    return clone(
-      [...this.items.values()]
-        .filter((perfil) => perfil.clienteId === clienteId)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    )
+  async buscarPorIdParaCliente(id: string, clienteId: string): Promise<PerfilIdealDTO | null> {
+    const item = this.items.get(id)
+    return item && item.clienteId === clienteId ? clone(item) : null
+  }
+
+  async buscarPorCliente(
+    clienteId: string,
+    filtros?: { tipo?: string; limit?: number; offset?: number },
+  ): Promise<PerfilIdealDTO[]> {
+    const all = [...this.items.values()]
+      .filter((perfil) => perfil.clienteId === clienteId)
+      .filter((perfil) => !filtros?.tipo || perfil.tipo === filtros.tipo)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+    const offset = filtros?.offset ?? 0
+    const { limit } = filtros ?? {}
+    return clone(limit !== undefined ? all.slice(offset, offset + limit) : all.slice(offset))
   }
 }
 
@@ -121,11 +132,13 @@ export class MemoryEntidadeAlvoRepo implements IEntidadeAlvoRepository {
     }
   }
 
-  async buscarPorEscopo(escopo: string): Promise<EntidadeAlvoDTO[]> {
+  async buscarPorEscopo(escopo: string, tipo?: string): Promise<EntidadeAlvoDTO[]> {
     const normalizado = escopo.toLocaleLowerCase('pt-BR')
     return clone(
       [...this.items.values()].filter(
-        (entidade) => entidade.escopo.toLocaleLowerCase('pt-BR') === normalizado,
+        (entidade) =>
+          entidade.escopo.toLocaleLowerCase('pt-BR') === normalizado &&
+          (tipo === undefined || entidade.tipo === tipo),
       ),
     )
   }
@@ -144,13 +157,21 @@ export class MemoryAnaliseRepo implements IAnaliseRepository {
     return item ? clone(item) : null
   }
 
+  async buscarPorIdParaCliente(id: string, clienteId: string): Promise<AnaliseDTO | null> {
+    const item = this.items.get(id)
+    return item && item.clienteId === clienteId ? clone(item) : null
+  }
+
   async listarPorCliente(
     clienteId: string,
     limit: number,
     offset: number,
+    filtros?: { escopo?: string; origem?: string },
   ): Promise<{ items: AnaliseResumoDTO[]; total: number }> {
     const all = [...this.items.values()]
       .filter((analise) => analise.clienteId === clienteId)
+      .filter((analise) => !filtros?.escopo || analise.escopo === filtros.escopo)
+      .filter((analise) => !filtros?.origem || analise.origem === filtros.origem)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
     const items: AnaliseResumoDTO[] = all
@@ -174,6 +195,16 @@ export class MemoryEntregaRepo implements IEntregaRepository {
   async buscarPorId(id: string): Promise<EntregaDTO | null> {
     const item = this.items.get(id)
     return item ? clone(item) : null
+  }
+
+  async listarPorCliente(clienteId: string, limit: number, offset: number): Promise<{ items: EntregaDTO[]; total: number }> {
+    const all = [...this.items.values()]
+      .filter((e) => e.clienteId === clienteId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return {
+      items: clone(all.slice(offset, offset + limit)),
+      total: all.length,
+    }
   }
 }
 

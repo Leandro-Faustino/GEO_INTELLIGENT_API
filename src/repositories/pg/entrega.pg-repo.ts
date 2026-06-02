@@ -1,6 +1,7 @@
 import type { Pool } from 'pg'
 import type { EntregaDTO, IEntregaRepository } from '../interfaces/index.js'
 import { runInClienteContext } from './tenant-context.js'
+import { toIso } from './utils.js'
 
 export class EntregaPgRepository implements IEntregaRepository {
   constructor(private readonly pool: Pool) {}
@@ -41,6 +42,28 @@ export class EntregaPgRepository implements IEntregaRepository {
     )
     return result.rows[0] ? mapEntrega(result.rows[0]) : null
   }
+
+  async listarPorCliente(clienteId: string, limit: number, offset: number): Promise<{ items: EntregaDTO[]; total: number }> {
+    const [itemsResult, countResult] = await Promise.all([
+      this.pool.query(
+        `select id, cliente_id, analise_id, tipo, periodo, formato, total_oportunidades, created_at, updated_at
+         from entregas
+         where cliente_id = $1
+         order by created_at desc
+         limit $2 offset $3`,
+        [clienteId, limit, offset],
+      ),
+      this.pool.query(
+        `select count(*)::int as total from entregas where cliente_id = $1`,
+        [clienteId],
+      ),
+    ])
+
+    return {
+      items: itemsResult.rows.map(mapEntrega),
+      total: Number(countResult.rows[0]?.total ?? 0),
+    }
+  }
 }
 
 export class PgEntregaRepository extends EntregaPgRepository {}
@@ -59,6 +82,3 @@ function mapEntrega(row: Record<string, unknown>): EntregaDTO {
   }
 }
 
-function toIso(value: unknown): string {
-  return value instanceof Date ? value.toISOString() : String(value)
-}

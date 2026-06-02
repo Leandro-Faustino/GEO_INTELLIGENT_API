@@ -52,6 +52,35 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
     },
   )
 
+  fastify.get('/entregas', {
+    schema: {
+      summary: 'Listar entregas por cliente',
+      description: 'Retorna o histórico paginado de entregas de um cliente.',
+      tags: ['Entregas'],
+      security: [{ bearerAuth: [] }],
+      querystring: Type.Object(
+        {
+          clienteId: Type.String({ minLength: 1 }),
+          limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+          offset: Type.Optional(Type.Integer({ minimum: 0, default: 0 })),
+        },
+        { additionalProperties: false },
+      ),
+      response: {
+        200: Type.Object({
+          total: Type.Integer(),
+          items: Type.Array(EntregaResponse),
+        }),
+        403: ErrorResponse,
+      },
+    },
+  }, async function listarEntregasHandler(request) {
+    const { clienteId, limit = 20, offset = 0 } = request.query
+    const cliente = await assertClienteDoUsuario(fastify, clienteId, request.user.sub)
+    const { items, total } = await fastify.entregaRepo.listarPorCliente(cliente.id, limit, offset)
+    return { total, items }
+  })
+
   fastify.get(
     '/entregas/:id',
     {
@@ -78,6 +107,28 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
       return entrega
     },
   )
+
+  fastify.get('/entregas/:id/feedbacks', {
+    schema: {
+      summary: 'Listar feedbacks de uma entrega',
+      description: 'Retorna todos os feedbacks registrados para uma entrega.',
+      tags: ['Entregas'],
+      security: [{ bearerAuth: [] }],
+      params: IdParams,
+      response: {
+        200: Type.Array(FeedbackResponse),
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+    },
+  }, async function listarFeedbacksEntregaHandler(request, reply) {
+    const entrega = await fastify.entregaService.buscarEntregaPorId(request.params.id)
+    if (!entrega) {
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: `Entrega '${request.params.id}' não encontrada.` })
+    }
+    await assertClienteDoUsuario(fastify, entrega.clienteId, request.user.sub)
+    return fastify.feedbackRepo.buscarPorEntregaId(request.params.id)
+  })
 
   fastify.post(
     '/entregas/:id/feedback',
@@ -194,7 +245,7 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
 
       await assertClienteDoUsuario(fastify, entrega.clienteId, request.user.sub)
 
-      const analise = await fastify.analiseRepo.buscarPorId(entrega.analiseId)
+      const analise = await fastify.analiseRepo.buscarPorIdParaCliente(entrega.analiseId, entrega.clienteId)
       const oportunidades = analise?.oportunidades ?? []
 
       const formato = request.query.formato ?? 'json'
@@ -202,14 +253,14 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
 
       if (formato === 'csv') {
         const csv = oportunidadesParaCsv(oportunidades)
-        reply.raw.setHeader('Content-Type', 'text/csv; charset=utf-8')
-        reply.raw.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}.csv"`)
+        reply.type('text/csv; charset=utf-8')
+        reply.header('Content-Disposition', `attachment; filename="${nomeArquivo}.csv"`)
         return reply.code(200).send(csv)
       }
 
       const json = oportunidadesParaJson(entrega, oportunidades)
-      reply.raw.setHeader('Content-Type', 'application/json; charset=utf-8')
-      reply.raw.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}.json"`)
+      reply.type('application/json; charset=utf-8')
+      reply.header('Content-Disposition', `attachment; filename="${nomeArquivo}.json"`)
       return reply.code(200).send(JSON.stringify(json, null, 2))
     },
   )

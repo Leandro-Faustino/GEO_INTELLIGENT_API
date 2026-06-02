@@ -53,11 +53,10 @@ export class MongoEntidadeAlvoRepository implements IEntidadeAlvoRepository {
     )
   }
 
-  async buscarPorEscopo(escopo: string): Promise<EntidadeAlvoDTO[]> {
-    const docs = await this.collection
-      .find({ escopo: String(escopo) })
-      .limit(1000)
-      .toArray()
+  async buscarPorEscopo(escopo: string, tipo?: string): Promise<EntidadeAlvoDTO[]> {
+    const filtro: Record<string, unknown> = { escopo: String(escopo) }
+    if (tipo !== undefined) filtro['tipo'] = tipo
+    const docs = await this.collection.find(filtro).limit(1000).toArray()
     return docs.map(mapDoc)
   }
 

@@ -5,6 +5,7 @@ type TestApp = Awaited<ReturnType<typeof buildTestApp>>
 
 const TEST_ENV: Record<string, string> = {
   NODE_ENV: 'test',
+  DB_ENABLED: 'false',
   HOST: '127.0.0.1',
   PORT: '0',
   LOG_LEVEL: 'silent',

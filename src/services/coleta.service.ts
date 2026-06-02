@@ -13,7 +13,11 @@ export class ColetaService {
     criterios: CriterioDerivadoDTO[],
     escopo: string,
     limite = 200,
+    tipo = 'pj',
   ): Promise<EntidadeAlvoDTO[]> {
+    // Coleta via CNPJ só faz sentido para perfis PJ (base PF não tem CNAE)
+    if (tipo !== 'pj') return []
+
     const municipio = this.extrairMunicipio(criterios) || escopo
     const resultados = await this.adapterCnpj.consultar({
       cnaes: this.extrairCnaes(criterios),

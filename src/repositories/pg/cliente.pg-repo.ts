@@ -1,5 +1,6 @@
 import type { Pool } from 'pg'
 import type { ClienteDTO, IClienteRepository } from '../interfaces/index.js'
+import { toIso } from './utils.js'
 
 export class ClientePgRepository implements IClienteRepository {
   constructor(private readonly pool: Pool) {}
@@ -111,6 +112,3 @@ function mapCliente(row: Record<string, unknown>): ClienteDTO {
   }
 }
 
-function toIso(value: unknown): string {
-  return value instanceof Date ? value.toISOString() : String(value)
-}

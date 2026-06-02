@@ -282,6 +282,70 @@ test('perfis: usa geocoder real antes do IBGE para CNPJ com endereco', async () 
   }
 })
 
+test('perfis: base mista — derivar pj usa só compradores pj, derivar pf usa só compradores pf', async () => {
+  const app = await buildTestApp()
+  try {
+    const token = await loginAs(app, 'alice@example.com', 'alice-secret-123')
+
+    const cliente = await app.inject({
+      method: 'POST',
+      url: '/clientes',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { razaoSocial: 'Cliente Misto', segmento: 'varejo', cidade: 'São Paulo', vertical: 'saude' },
+    })
+    const clienteId = cliente.json<{ id: string }>().id
+
+    await app.inject({
+      method: 'POST',
+      url: `/clientes/${clienteId}/base-interna`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        periodo: '2026-05',
+        compradores: [
+          // 4 PJ com atributo cnae
+          { identificador: '11222333000181', nome: 'Empresa A', tipo: 'pj', atributosOriginais: { cnae: '4771701', porte: 'medio' }, ticketMedio: 1000, frequencia: 3, ativo: true },
+          { identificador: '22333444000172', nome: 'Empresa B', tipo: 'pj', atributosOriginais: { cnae: '4771701', porte: 'medio' }, ticketMedio: 1200, frequencia: 2, ativo: true },
+          { identificador: '33444555000163', nome: 'Empresa C', tipo: 'pj', atributosOriginais: { cnae: '4771701', porte: 'pequeno' }, ticketMedio: 800, frequencia: 4, ativo: true },
+          { identificador: '44555666000154', nome: 'Empresa D', tipo: 'pj', atributosOriginais: { cnae: '4771701', porte: 'medio' }, ticketMedio: 950, frequencia: 2, ativo: true },
+          // 4 PF com atributo faixaRenda
+          { identificador: '111.222.333-44', nome: 'Ana Silva', tipo: 'pf', atributosOriginais: { faixaRenda: 'B', cidade: 'São Paulo' }, ticketMedio: 200, frequencia: 5, ativo: true },
+          { identificador: '222.333.444-55', nome: 'Bruno Costa', tipo: 'pf', atributosOriginais: { faixaRenda: 'B', cidade: 'São Paulo' }, ticketMedio: 180, frequencia: 3, ativo: true },
+          { identificador: '333.444.555-66', nome: 'Carla Lima', tipo: 'pf', atributosOriginais: { faixaRenda: 'C', cidade: 'São Paulo' }, ticketMedio: 150, frequencia: 2, ativo: true },
+          { identificador: '444.555.666-77', nome: 'Diego Melo', tipo: 'pf', atributosOriginais: { faixaRenda: 'B', cidade: 'São Paulo' }, ticketMedio: 220, frequencia: 4, ativo: true },
+        ],
+      },
+    })
+
+    const resPJ = await app.inject({
+      method: 'POST',
+      url: '/perfis/derivar',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { clienteId, tipoAlvo: 'pj' },
+    })
+    const perfilPJ = resPJ.json<{ tipo: string; criterios: Array<{ nome: string }> }>()
+    assert.equal(resPJ.statusCode, 201)
+    assert.equal(perfilPJ.tipo, 'pj')
+    // Perfil PJ deve ter critérios de PJ (cnae, porte) mas NÃO atributos de PF
+    assert.ok(perfilPJ.criterios.some((c) => c.nome === 'cnae'), 'cnae deve estar nos critérios PJ')
+    assert.ok(!perfilPJ.criterios.some((c) => c.nome === 'faixaRenda'), 'faixaRenda não deve vazar para perfil PJ')
+
+    const resPF = await app.inject({
+      method: 'POST',
+      url: '/perfis/derivar',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { clienteId, tipoAlvo: 'pf' },
+    })
+    const perfilPF = resPF.json<{ tipo: string; criterios: Array<{ nome: string }> }>()
+    assert.equal(resPF.statusCode, 201)
+    assert.equal(perfilPF.tipo, 'pf')
+    // Perfil PF deve ter critérios de PF (faixaRenda, cidade) mas NÃO atributos de PJ
+    assert.ok(perfilPF.criterios.some((c) => c.nome === 'faixaRenda'), 'faixaRenda deve estar nos critérios PF')
+    assert.ok(!perfilPF.criterios.some((c) => c.nome === 'cnae'), 'cnae não deve vazar para perfil PF')
+  } finally {
+    await app.close()
+  }
+})
+
 test('perfis: enriquecer com fonte inválida retorna 422', async () => {
   const app = await buildTestApp()
   try {
@@ -296,6 +360,36 @@ test('perfis: enriquecer com fonte inválida retorna 422', async () => {
     })
 
     assert.equal(res.statusCode, 422)
+  } finally {
+    await app.close()
+  }
+})
+
+test('perfis: enriquecer base PF reporta cnpj-receita-federal em fontesComFalha sem contaminar perfil', async () => {
+  const app = await buildTestApp()
+  try {
+    const token = await loginAs(app, 'alice@example.com', 'alice-secret-123')
+    const clienteId = await criarClienteComBaseCPF(app, token)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/perfis/enriquecer',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { clienteId, fontes: ['cnpj-receita-federal'] },
+    })
+
+    const body = res.json<{
+      perfilOriginal: { totalFatores: number }
+      perfilEnriquecido: { totalFatores: number }
+      fontesConsultadas: string[]
+      fontesComFalha: string[]
+    }>()
+
+    assert.equal(res.statusCode, 200)
+    assert.ok(body.fontesConsultadas.includes('cnpj-receita-federal'))
+    assert.ok(body.fontesComFalha.includes('cnpj-receita-federal'), 'CPF deve aparecer em fontesComFalha')
+    // Perfil não deve ter mais critérios do que o original (nenhum dado PJ falso mesclado)
+    assert.equal(body.perfilEnriquecido.totalFatores, body.perfilOriginal.totalFatores)
   } finally {
     await app.close()
   }
@@ -483,6 +577,53 @@ async function criarClienteComBaseCnpjEndereco(
   })
 
   return clienteId
+}
+
+async function criarClienteComBaseCPF(
+  app: FastifyInstance,
+  token: string,
+): Promise<string> {
+  const cliente = await app.inject({
+    method: 'POST',
+    url: '/clientes',
+    headers: { authorization: `Bearer ${token}` },
+    payload: {
+      razaoSocial: 'Cliente Base PF',
+      segmento: 'academia',
+      cidade: 'São Paulo',
+      vertical: 'fitness',
+    },
+  })
+  const clienteId = cliente.json<{ id: string }>().id
+
+  await app.inject({
+    method: 'POST',
+    url: `/clientes/${clienteId}/base-interna`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: {
+      periodo: '2026-05',
+      compradores: [
+        compradorCPF('234.567.890-12', 'Ana Costa', 800),
+        compradorCPF('345.678.901-23', 'Bruno Lima', 600),
+        compradorCPF('456.789.012-34', 'Carla Melo', 750),
+        compradorCPF('567.890.123-45', 'Diego Silva', 700),
+      ],
+    },
+  })
+
+  return clienteId
+}
+
+function compradorCPF(identificador: string, nome: string, ticketMedio: number) {
+  return {
+    identificador,
+    nome,
+    tipo: 'pf',
+    atributosOriginais: { cidade: 'São Paulo', uf: 'SP' },
+    ticketMedio,
+    frequencia: 3,
+    ativo: true,
+  }
 }
 
 function comprador(

@@ -6,6 +6,7 @@ import { AdaptadorGeocoder } from '../adapters/geocoder.adapter.js'
 import { AdaptadorIBGE } from '../adapters/ibge.adapter.js'
 import { AdaptadorRegistroImoveis } from '../adapters/registro-imoveis.adapter.js'
 import { ColetaService } from '../services/coleta.service.js'
+import { EnriquecimentoService } from '../services/enriquecimento.service.js'
 import {
   IdhMunicipalService,
   validarIdhMunicipalDataset,
@@ -25,6 +26,7 @@ declare module 'fastify' {
       readonly todas: readonly IAdaptadorFonte[]
     }
     readonly coletaService: ColetaService
+    readonly enriquecimentoService: EnriquecimentoService
   }
 }
 
@@ -111,6 +113,18 @@ export default fp(
       todas: [cnpj, ibge, geocoder, registroImoveis] as const,
     })
     fastify.decorate('coletaService', new ColetaService(cnpj))
+    fastify.decorate(
+      'enriquecimentoService',
+      new EnriquecimentoService(
+        fastify.baseInternaRepo,
+        fastify.perfilRepo,
+        [cnpj, ibge, geocoder, registroImoveis].map((adapter) => ({
+          nome: adapter.nome,
+          adapter,
+        })),
+        fastify.enriquecimentoCompradorRepo,
+      ),
+    )
 
     fastify.log.info(
       {

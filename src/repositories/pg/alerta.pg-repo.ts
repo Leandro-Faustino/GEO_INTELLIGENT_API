@@ -1,6 +1,7 @@
 import type { Pool } from 'pg'
 import type { AlertaDTO, IAlertaRepository } from '../interfaces/index.js'
 import { runInClienteContext } from './tenant-context.js'
+import { toIso } from './utils.js'
 
 export class AlertaPgRepository implements IAlertaRepository {
   constructor(private readonly pool: Pool) {}
@@ -124,6 +125,3 @@ function mapAlerta(row: Record<string, unknown>): AlertaDTO {
   }
 }
 
-function toIso(value: unknown): string {
-  return value instanceof Date ? value.toISOString() : String(value)
-}

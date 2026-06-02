@@ -131,6 +131,7 @@ export class EnriquecimentoService {
   async enriquecer(
     clienteId: string,
     fontesDesejadas?: string[],
+    tipoAlvoExplicito?: string,
   ): Promise<ResultadoEnriquecimento> {
     const base = await this.baseInternaRepo.buscarPorCliente(clienteId)
     if (!base) {
@@ -152,9 +153,12 @@ export class EnriquecimentoService {
       )
     }
 
+    const tipoAlvo = tipoAlvoExplicito ?? detectarTipoMajoritario(bonsCompradores)
+    const compradoresDoTipo = bonsCompradores.filter((c) => c.tipo === tipoAlvo)
+
     const derivacao = new DerivacaoService(this.baseInternaRepo, this.perfilRepo)
     const fontesAtivas = this.validarFontesDesejadas(fontesDesejadas)
-    const perfilOriginal = await derivacao.calcularPerfil(clienteId, 'pj')
+    const perfilOriginal = await derivacao.calcularPerfil(clienteId, tipoAlvo)
     const nomesOriginais = new Set(perfilOriginal.criterios.map((criterio) => criterio.nome))
 
     const fontesConsultadas: string[] = []
@@ -162,7 +166,7 @@ export class EnriquecimentoService {
 
     const compradoresEnriquecidos = await this.enriquecerTodos(
       clienteId,
-      bonsCompradores,
+      compradoresDoTipo,
       fontesAtivas,
       fontesConsultadas,
       fontesComFalha,
@@ -299,7 +303,7 @@ export class EnriquecimentoService {
         const dados = fonte.adapter.enriquecerComContexto
           ? await fonte.adapter.enriquecerComContexto(contexto)
           : await fonte.adapter.enriquecer(comprador.identificador)
-        await this.registrarEnriquecimento({
+        await this.salvarAuditoria({
           clienteId,
           comprador,
           fonte: fonte.nome,
@@ -309,7 +313,7 @@ export class EnriquecimentoService {
         })
         return { fonte: fonte.nome, dados, sucesso: true as const, isOptional }
       } catch (error) {
-        await this.registrarEnriquecimento({
+        await this.salvarAuditoria({
           clienteId,
           comprador,
           fonte: fonte.nome,
@@ -346,6 +350,21 @@ export class EnriquecimentoService {
       if (!isOptional) {
         this.mesclarAtributos(atributosMergeados, dados)
       }
+    }
+  }
+
+  private async salvarAuditoria(params: {
+    clienteId: string
+    comprador: CompradorConhecidoDTO
+    fonte: string
+    status: EnriquecimentoCompradorDTO['status']
+    payload: Record<string, unknown>
+    erro: string
+  }): Promise<void> {
+    try {
+      await this.registrarEnriquecimento(params)
+    } catch {
+      // falha de auditoria não deve interromper o enriquecimento
     }
   }
 
@@ -424,12 +443,17 @@ export class EnriquecimentoService {
     perfilOriginal: PerfilIdealDTO,
     criteriosEnriquecidos: CriterioDerivadoDTO[],
   ): Promise<PerfilIdealDTO> {
+    const nomesCriteriosEnriquecidos = new Set(criteriosEnriquecidos.map((c) => c.nome))
+    const criteriosOriginaisRestantes = perfilOriginal.criterios.filter(
+      (c) => !nomesCriteriosEnriquecidos.has(c.nome),
+    )
+    const criteriosMesclados = [...criteriosEnriquecidos, ...criteriosOriginaisRestantes]
     const now = new Date().toISOString()
     return this.perfilRepo.salvar({
       ...perfilOriginal,
       id: randomUUID(),
       nome: `${perfilOriginal.nome} enriquecido`,
-      criterios: criteriosEnriquecidos,
+      criterios: criteriosMesclados,
       createdAt: now,
       updatedAt: now,
     })
@@ -543,4 +567,20 @@ export class EnriquecimentoService {
   private arredondar(valor: number): number {
     return Math.round(valor * 100) / 100
   }
+}
+
+function detectarTipoMajoritario(compradores: CompradorConhecidoDTO[]): string {
+  const contagem = new Map<string, number>()
+  for (const c of compradores) {
+    contagem.set(c.tipo, (contagem.get(c.tipo) ?? 0) + 1)
+  }
+  let tipoMax = 'pj'
+  let maxCount = 0
+  for (const [tipo, count] of contagem) {
+    if (count > maxCount) {
+      maxCount = count
+      tipoMax = tipo
+    }
+  }
+  return tipoMax
 }

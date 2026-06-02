@@ -26,19 +26,28 @@ export class AnaliseService {
     escopo: string,
     limiar = 0.3,
     perfilId?: string,
+    tipoAlvo?: string,
   ): Promise<AnaliseDTO> {
     const perfis = await this.perfilRepo.buscarPorCliente(clienteId)
     const perfil = perfilId
-      ? (perfis.find((p) => p.id === perfilId) ?? perfis[0])
-      : perfis[0]
+      ? perfis.find((p) => p.id === perfilId)
+      : tipoAlvo
+        ? (perfis.find((p) => p.tipo === tipoAlvo) ?? perfis[0])
+        : perfis[0]
 
+    if (!perfil && perfilId) {
+      throw Object.assign(
+        new Error(`Perfil '${perfilId}' não encontrado para este cliente.`),
+        { statusCode: 404 },
+      )
+    }
     if (!perfil) {
       throw Object.assign(new Error('Nenhum perfil encontrado para este cliente.'), {
         statusCode: 404,
       })
     }
 
-    const entidades = await this.entidadeRepo.buscarPorEscopo(escopo)
+    const entidades = await this.entidadeRepo.buscarPorEscopo(escopo, perfil.tipo)
     const base = await this.baseInternaRepo.buscarPorCliente(clienteId)
     const jaClientes = new Set(
       base?.compradores.map((comprador) => comprador.identificador) ?? [],
@@ -63,6 +72,7 @@ export class AnaliseService {
     return this.analiseRepo.salvar({
       id: randomUUID(),
       clienteId,
+      perfilId: perfil.id,
       tipo: perfil.tipo,
       escopo,
       versaoModelo: VERSAO_MODELO_LOCAL,
@@ -119,6 +129,10 @@ export class AnaliseService {
         const aceitos = Array.isArray(criterio.valorMin)
           ? criterio.valorMin
           : [criterio.valorMin]
+        if (criterio.nome === 'cnae') {
+          const norm = (v: unknown) => String(v ?? '').replace(/\D/g, '')
+          return aceitos.map(norm).includes(norm(valor)) ? 1 : 0
+        }
         return aceitos.map(String).includes(String(valor)) ? 1 : 0
       }
       case 'booleano':

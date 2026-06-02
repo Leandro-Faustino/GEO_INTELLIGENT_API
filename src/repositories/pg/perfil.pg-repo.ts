@@ -1,10 +1,30 @@
-import type { Pool } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 import type {
   CriterioDerivadoDTO,
   IPerfilRepository,
   PerfilIdealDTO,
 } from '../interfaces/index.js'
 import { runInClienteContext } from './tenant-context.js'
+import { toIso } from './utils.js'
+
+const SELECT_PERFIL_COM_CRITERIOS = `
+  SELECT
+    p.id, p.cliente_id, p.nome, p.tipo, p.hipotetico, p.exclusoes,
+    p.created_at, p.updated_at,
+    COALESCE(
+      json_agg(
+        json_build_object(
+          'nome',           c.nome,
+          'valorMin',       c.valor_min,
+          'valorMax',       c.valor_max,
+          'peso',           c.peso::float,
+          'tipoComparacao', c.tipo_comparacao
+        ) ORDER BY c.nome
+      ) FILTER (WHERE c.perfil_id IS NOT NULL),
+      '[]'::json
+    ) AS criterios
+  FROM perfis_ideais p
+  LEFT JOIN criterios_derivados c ON c.perfil_id = p.id`
 
 export class PerfilPgRepository implements IPerfilRepository {
   constructor(private readonly pool: Pool) {}
@@ -12,16 +32,16 @@ export class PerfilPgRepository implements IPerfilRepository {
   async salvar(perfil: PerfilIdealDTO): Promise<PerfilIdealDTO> {
     return runInClienteContext(this.pool, perfil.clienteId, async (client) => {
       const perfilResult = await client.query(
-        `insert into perfis_ideais
+        `INSERT INTO perfis_ideais
           (id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)
-         on conflict (id) do update set
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE SET
           nome = excluded.nome,
           tipo = excluded.tipo,
           hipotetico = excluded.hipotetico,
           exclusoes = excluded.exclusoes,
           updated_at = excluded.updated_at
-         returning id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at`,
+         RETURNING id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at`,
         [
           perfil.id,
           perfil.clienteId,
@@ -34,82 +54,93 @@ export class PerfilPgRepository implements IPerfilRepository {
         ],
       )
 
-      await client.query('delete from criterios_derivados where perfil_id = $1', [
-        perfil.id,
-      ])
+      await client.query('DELETE FROM criterios_derivados WHERE perfil_id = $1', [perfil.id])
 
-      for (const criterio of perfil.criterios) {
-        await client.query(
-          `insert into criterios_derivados
-            (perfil_id, nome, valor_min, valor_max, peso, tipo_comparacao)
-           values ($1, $2, $3, $4, $5, $6)`,
-          [
-            perfil.id,
-            criterio.nome,
-            JSON.stringify(criterio.valorMin),
-            JSON.stringify(criterio.valorMax),
-            criterio.peso,
-            criterio.tipoComparacao,
-          ],
-        )
+      if (perfil.criterios.length > 0) {
+        await inserirCriterios(client, perfil.id, perfil.criterios)
       }
+
       return { ...mapPerfil(perfilResult.rows[0]), criterios: perfil.criterios }
     })
   }
 
   async buscarPorId(id: string): Promise<PerfilIdealDTO | null> {
     const result = await this.pool.query(
-      `select id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at
-       from perfis_ideais where id = $1`,
+      `${SELECT_PERFIL_COM_CRITERIOS} WHERE p.id = $1 GROUP BY p.id`,
       [id],
     )
-    if (!result.rows[0]) return null
-
-    return {
-      ...mapPerfil(result.rows[0]),
-      criterios: await this.buscarCriterios(id, this.pool),
-    }
+    return result.rows[0] ? mapPerfilComCriterios(result.rows[0]) : null
   }
 
-  async buscarPorCliente(clienteId: string): Promise<PerfilIdealDTO[]> {
+  async buscarPorIdParaCliente(id: string, clienteId: string): Promise<PerfilIdealDTO | null> {
     return runInClienteContext(this.pool, clienteId, async (client) => {
       const result = await client.query(
-        `select id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at
-         from perfis_ideais where cliente_id = $1 order by created_at desc`,
-        [clienteId],
+        `${SELECT_PERFIL_COM_CRITERIOS} WHERE p.id = $1 AND p.cliente_id = $2 GROUP BY p.id`,
+        [id, clienteId],
       )
-
-      const perfis: PerfilIdealDTO[] = []
-      for (const row of result.rows) {
-        perfis.push({
-          ...mapPerfil(row),
-          criterios: await this.buscarCriterios(String(row.id), client),
-        })
-      }
-      return perfis
+      return result.rows[0] ? mapPerfilComCriterios(result.rows[0]) : null
     })
   }
 
-  private async buscarCriterios(
-    perfilId: string,
-    client: { query: Pool['query'] },
-  ): Promise<CriterioDerivadoDTO[]> {
-    const result = await client.query(
-      `select nome, valor_min, valor_max, peso, tipo_comparacao
-       from criterios_derivados where perfil_id = $1`,
-      [perfilId],
-    )
-    return result.rows.map((row) => ({
-      nome: String(row.nome),
-      valorMin: row.valor_min,
-      valorMax: row.valor_max,
-      peso: Number(row.peso),
-      tipoComparacao: row.tipo_comparacao,
-    }))
+  async buscarPorCliente(
+    clienteId: string,
+    filtros?: { tipo?: string; limit?: number; offset?: number },
+  ): Promise<PerfilIdealDTO[]> {
+    return runInClienteContext(this.pool, clienteId, async (client) => {
+      const result = await client.query(
+        `${SELECT_PERFIL_COM_CRITERIOS}
+         WHERE p.cliente_id = $1
+           AND ($2::text IS NULL OR p.tipo = $2)
+         GROUP BY p.id
+         ORDER BY p.created_at DESC
+         LIMIT $3 OFFSET $4`,
+        [clienteId, filtros?.tipo ?? null, filtros?.limit ?? null, filtros?.offset ?? 0],
+      )
+      return result.rows.map(mapPerfilComCriterios)
+    })
   }
 }
 
 export class PgPerfilRepository extends PerfilPgRepository {}
+
+async function inserirCriterios(
+  client: PoolClient,
+  perfilId: string,
+  criterios: CriterioDerivadoDTO[],
+): Promise<void> {
+  await client.query(
+    `INSERT INTO criterios_derivados (perfil_id, nome, valor_min, valor_max, peso, tipo_comparacao)
+     SELECT $1, unnest($2::text[]), unnest($3::jsonb[]), unnest($4::jsonb[]),
+            unnest($5::numeric[]), unnest($6::text[])`,
+    [
+      perfilId,
+      criterios.map((c) => c.nome),
+      criterios.map((c) => JSON.stringify(c.valorMin)),
+      criterios.map((c) => JSON.stringify(c.valorMax)),
+      criterios.map((c) => c.peso),
+      criterios.map((c) => c.tipoComparacao),
+    ],
+  )
+}
+
+function mapPerfilComCriterios(row: Record<string, unknown>): PerfilIdealDTO {
+  return {
+    ...mapPerfil(row),
+    criterios: Array.isArray(row['criterios'])
+      ? (row['criterios'] as Record<string, unknown>[]).map(mapCriterioFromJson)
+      : [],
+  }
+}
+
+function mapCriterioFromJson(obj: Record<string, unknown>): CriterioDerivadoDTO {
+  return {
+    nome: String(obj['nome']),
+    valorMin: obj['valorMin'],
+    valorMax: obj['valorMax'],
+    peso: Number(obj['peso']),
+    tipoComparacao: obj['tipoComparacao'] as CriterioDerivadoDTO['tipoComparacao'],
+  }
+}
 
 function mapPerfil(row: Record<string, unknown>): Omit<PerfilIdealDTO, 'criterios'> {
   return {
@@ -122,8 +153,4 @@ function mapPerfil(row: Record<string, unknown>): Omit<PerfilIdealDTO, 'criterio
     createdAt: toIso(row['created_at']),
     updatedAt: toIso(row['updated_at']),
   }
-}
-
-function toIso(value: unknown): string {
-  return value instanceof Date ? value.toISOString() : String(value)
 }

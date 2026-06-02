@@ -27,3 +27,5 @@ DROP TRIGGER IF EXISTS trg_usuarios_updated_at ON usuarios;
 CREATE TRIGGER trg_usuarios_updated_at
   BEFORE UPDATE ON usuarios
   FOR EACH ROW EXECUTE FUNCTION atualizar_updated_at_usuarios();
+
+GRANT select, insert, update, delete ON usuarios TO geolead_app;

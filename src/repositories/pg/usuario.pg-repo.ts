@@ -81,7 +81,7 @@ function mapRow(row: Record<string, unknown>): UsuarioDTO {
     senhaHash: String(row['senha_hash']),
     role: String(row['role']) as 'user' | 'admin',
     ativo: Boolean(row['ativo']),
-    createdAt: String(row['created_at']),
-    updatedAt: String(row['updated_at']),
+    createdAt: (row['created_at'] as Date).toISOString(),
+    updatedAt: (row['updated_at'] as Date).toISOString(),
   }
 }

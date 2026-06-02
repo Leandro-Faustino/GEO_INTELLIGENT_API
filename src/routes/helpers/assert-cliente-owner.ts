@@ -5,16 +5,12 @@ export async function assertClienteDoUsuario(
   clienteId: string,
   ownerId: string,
 ) {
-  const cliente = await fastify.clienteRepo.buscarPorId(clienteId)
-  if (!cliente) {
-    throw Object.assign(new Error(`Cliente '${clienteId}' não encontrado.`), {
-      statusCode: 404,
-    })
+  const cliente = await fastify.clienteRepo.buscarPorIdDoOwner(clienteId, ownerId)
+  if (cliente) return cliente
+
+  const existe = await fastify.clienteRepo.buscarPorId(clienteId)
+  if (existe) {
+    throw Object.assign(new Error('Acesso negado a este recurso.'), { statusCode: 403 })
   }
-  if (cliente.ownerId !== ownerId) {
-    throw Object.assign(new Error('Acesso negado a este recurso.'), {
-      statusCode: 403,
-    })
-  }
-  return cliente
+  throw Object.assign(new Error(`Cliente '${clienteId}' não encontrado.`), { statusCode: 404 })
 }
