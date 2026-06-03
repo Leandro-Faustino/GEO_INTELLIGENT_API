@@ -40,3 +40,5 @@ O plugin `45-services.ts` escolhe as implementações concretas sem alterar serv
 - `remember()` implementa cache-aside.
 - TTL padrão configurável por `CACHE_TTL_SECONDS`.
 - Fallback em memória quando `REDIS_URL` não está configurado.
+- Os adapters de fontes externas usam `CachedFonteAdapter`, preservando o mesmo
+  contrato com Redis ou memória.

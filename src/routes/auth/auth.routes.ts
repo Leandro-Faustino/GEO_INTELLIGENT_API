@@ -16,6 +16,7 @@ const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => 
         summary: 'Autenticar usuário',
         description: 'Valida credenciais e retorna um token JWT para acessar rotas protegidas.',
         tags: ['Autenticação'],
+        security: [],
         body: Type.Object(
           {
             email: Type.String({ format: 'email', maxLength: 254 }),
@@ -33,11 +34,13 @@ const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => 
         },
       },
     },
-    async (request, reply) => {
+    async function loginHandler(request, reply) {
       const { email, password } = request.body
-      const user = findUserByCredentials(email, password)
+      request.log.info({ email }, 'tentativa de autenticacao recebida')
+      const user = findUserByCredentials(email, password, fastify.config)
 
       if (!user) {
+        request.log.warn({ email, ip: request.ip }, 'falha de autenticacao')
         return reply.code(401).send({
           statusCode: 401,
           error: 'Unauthorized',
@@ -45,6 +48,7 @@ const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => 
         })
       }
 
+      request.log.info({ userId: user.id, role: user.role }, 'autenticacao concluida')
       return {
         token: fastify.jwt.sign({ sub: user.id, role: user.role }),
       }
@@ -68,10 +72,12 @@ const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => 
         },
       },
     },
-    async (request) => ({
-      sub: request.user.sub,
-      role: request.user.role,
-    }),
+    async function meHandler(request) {
+      return {
+        sub: request.user.sub,
+        role: request.user.role,
+      }
+    },
   )
 }
 

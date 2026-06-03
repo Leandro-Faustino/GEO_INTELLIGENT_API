@@ -1,5 +1,6 @@
 import type { Pool } from 'pg'
 import type { ClienteDTO, IClienteRepository } from '../interfaces/index.js'
+import { toIso } from './utils.js'
 
 export class ClientePgRepository implements IClienteRepository {
   constructor(private readonly pool: Pool) {}
@@ -7,9 +8,10 @@ export class ClientePgRepository implements IClienteRepository {
   async salvar(cliente: ClienteDTO): Promise<ClienteDTO> {
     const result = await this.pool.query(
       `insert into clientes
-        (id, razao_social, segmento, cidade, endereco, vertical, parametros_negocio, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        (id, owner_id, razao_social, segmento, cidade, endereco, vertical, parametros_negocio, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        on conflict (id) do update set
+        owner_id = excluded.owner_id,
         razao_social = excluded.razao_social,
         segmento = excluded.segmento,
         cidade = excluded.cidade,
@@ -17,10 +19,11 @@ export class ClientePgRepository implements IClienteRepository {
         vertical = excluded.vertical,
         parametros_negocio = excluded.parametros_negocio,
         updated_at = excluded.updated_at
-       returning id, razao_social, segmento, cidade, endereco, vertical,
+       returning id, owner_id, razao_social, segmento, cidade, endereco, vertical,
         parametros_negocio, created_at, updated_at`,
       [
         cliente.id,
+        cliente.ownerId,
         cliente.razaoSocial,
         cliente.segmento,
         cliente.cidade,
@@ -36,7 +39,7 @@ export class ClientePgRepository implements IClienteRepository {
 
   async buscarPorId(id: string): Promise<ClienteDTO | null> {
     const result = await this.pool.query(
-      `select id, razao_social, segmento, cidade, endereco, vertical,
+      `select id, owner_id, razao_social, segmento, cidade, endereco, vertical,
         parametros_negocio, created_at, updated_at
        from clientes where id = $1`,
       [id],
@@ -44,14 +47,45 @@ export class ClientePgRepository implements IClienteRepository {
     return result.rows[0] ? mapCliente(result.rows[0]) : null
   }
 
+  async buscarPorIdDoOwner(id: string, ownerId: string): Promise<ClienteDTO | null> {
+    const result = await this.pool.query(
+      `select id, owner_id, razao_social, segmento, cidade, endereco, vertical,
+        parametros_negocio, created_at, updated_at
+       from clientes where id = $1 and owner_id = $2`,
+      [id, ownerId],
+    )
+    return result.rows[0] ? mapCliente(result.rows[0]) : null
+  }
+
   async listar(limit: number, offset: number): Promise<{ items: ClienteDTO[]; total: number }> {
     const result = await this.pool.query(
-      `select id, razao_social, segmento, cidade, endereco, vertical,
+      `select id, owner_id, razao_social, segmento, cidade, endereco, vertical,
         parametros_negocio, created_at, updated_at, count(*) over() as total_count
        from clientes
        order by created_at desc
        limit $1 offset $2`,
       [limit, offset],
+    )
+
+    return {
+      items: result.rows.map(mapCliente),
+      total: Number(result.rows[0]?.total_count ?? 0),
+    }
+  }
+
+  async listarPorOwner(
+    ownerId: string,
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ClienteDTO[]; total: number }> {
+    const result = await this.pool.query(
+      `select id, owner_id, razao_social, segmento, cidade, endereco, vertical,
+        parametros_negocio, created_at, updated_at, count(*) over() as total_count
+       from clientes
+       where owner_id = $1
+       order by created_at desc
+       limit $2 offset $3`,
+      [ownerId, limit, offset],
     )
 
     return {
@@ -66,6 +100,7 @@ export class PgClienteRepository extends ClientePgRepository {}
 function mapCliente(row: Record<string, unknown>): ClienteDTO {
   return {
     id: String(row['id']),
+    ownerId: String(row['owner_id']),
     razaoSocial: String(row['razao_social']),
     segmento: String(row['segmento']),
     cidade: String(row['cidade']),
@@ -77,6 +112,3 @@ function mapCliente(row: Record<string, unknown>): ClienteDTO {
   }
 }
 
-function toIso(value: unknown): string {
-  return value instanceof Date ? value.toISOString() : String(value)
-}

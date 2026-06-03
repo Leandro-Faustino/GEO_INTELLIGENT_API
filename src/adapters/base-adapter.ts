@@ -1,7 +1,21 @@
+export interface EnriquecimentoContexto {
+  identificador: string
+  nome: string
+  tipo: string
+  atributos: Record<string, unknown>
+}
+
 export interface IAdaptadorFonte {
   readonly nome: string
+  readonly modo: 'real' | 'mock' | 'hibrido'
+  readonly circuitState: string
+  readonly consecutiveFailures: number
+  readonly isOptional?: boolean
+  readonly observacao?: string
+  readonly providerMode?: string
   consultar(parametros: Record<string, unknown>): Promise<Record<string, unknown>[]>
   enriquecer(identificador: string): Promise<Record<string, unknown>>
+  enriquecerComContexto?(contexto: EnriquecimentoContexto): Promise<Record<string, unknown>>
 }
 
 interface CircuitBreakerState {
@@ -48,6 +62,14 @@ export abstract class BaseAdapter implements IAdaptadorFonte {
 
   get circuitState(): string {
     return this.cb.state
+  }
+
+  get consecutiveFailures(): number {
+    return this.cb.failures
+  }
+
+  get modo(): 'real' | 'mock' | 'hibrido' {
+    return 'mock'
   }
 
   protected async executarProtegido<T>(
@@ -131,7 +153,9 @@ export abstract class BaseAdapter implements IAdaptadorFonte {
 
 function isClientError(error: Error): boolean {
   const statusCode = (error as { statusCode?: number }).statusCode
-  return typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500
+  if (typeof statusCode !== 'number') return false
+  if (statusCode === 408 || statusCode === 429) return false
+  return statusCode >= 400 && statusCode < 500
 }
 
 function sleep(ms: number): Promise<void> {

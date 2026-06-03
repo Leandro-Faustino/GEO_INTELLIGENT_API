@@ -7,11 +7,14 @@ import {
   ImportarBaseInternaBody,
   UpdateClienteBody,
 } from '../../schemas/clientes/index.js'
+import { ListaCompradoresEnriquecidosResponse } from '../../schemas/clientes/compradores-enriquecidos.js'
 import {
   ErrorResponse,
   IdParams,
   PaginationQuery,
 } from '../../schemas/shared/index.js'
+import { EnriquecimentoService } from '../../services/enriquecimento.service.js'
+import { assertClienteDoUsuario } from '../helpers/assert-cliente-owner.js'
 
 const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.get(
@@ -41,8 +44,9 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         },
       },
     },
-    async (request) => {
-      const { items, total } = await fastify.clienteRepo.listar(
+    async function listarClientesHandler(request) {
+      const { items, total } = await fastify.clienteRepo.listarPorOwner(
+        request.user.sub,
         request.query.limit,
         request.query.offset,
       )
@@ -68,10 +72,19 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 201: ClienteResponse, 400: ErrorResponse },
       },
     },
-    async (request, reply) => {
+    async function criarClienteHandler(request, reply) {
+      request.log.info(
+        {
+          razaoSocial: request.body.razaoSocial,
+          cidade: request.body.cidade,
+          vertical: request.body.vertical,
+        },
+        'criando cliente',
+      )
       const now = new Date().toISOString()
       const cliente = await fastify.clienteRepo.salvar({
         id: randomUUID(),
+        ownerId: request.user.sub,
         razaoSocial: request.body.razaoSocial,
         segmento: request.body.segmento,
         cidade: request.body.cidade,
@@ -82,6 +95,7 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         updatedAt: now,
       })
 
+      request.log.info({ clienteId: cliente.id }, 'cliente criado')
       return reply.code(201).send(cliente)
     },
   )
@@ -98,8 +112,11 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 200: ClienteResponse, 404: ErrorResponse },
       },
     },
-    async (request, reply) => {
-      const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
+    async function buscarClientePorIdHandler(request, reply) {
+      const cliente = await fastify.clienteRepo.buscarPorIdDoOwner(
+        request.params.id,
+        request.user.sub,
+      )
       if (!cliente) {
         return reply.code(404).send({
           statusCode: 404,
@@ -125,8 +142,12 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 200: ClienteResponse, 404: ErrorResponse },
       },
     },
-    async (request, reply) => {
-      const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
+    async function atualizarClienteHandler(request, reply) {
+      request.log.info({ clienteId: request.params.id }, 'atualizando cliente')
+      const cliente = await fastify.clienteRepo.buscarPorIdDoOwner(
+        request.params.id,
+        request.user.sub,
+      )
       if (!cliente) {
         return reply.code(404).send({
           statusCode: 404,
@@ -135,13 +156,16 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         })
       }
 
-      return fastify.clienteRepo.salvar({
+      const atualizado = await fastify.clienteRepo.salvar({
         ...cliente,
         ...request.body,
         parametrosNegocio:
           request.body.parametrosNegocio ?? cliente.parametrosNegocio,
         updatedAt: new Date().toISOString(),
       })
+
+      request.log.info({ clienteId: atualizado.id }, 'cliente atualizado')
+      return atualizado
     },
   )
 
@@ -164,8 +188,16 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         },
       },
     },
-    async (request, reply) => {
-      const cliente = await fastify.clienteRepo.buscarPorId(request.params.id)
+    async function importarBaseInternaHandler(request, reply) {
+      request.log.info(
+        {
+          clienteId: request.params.id,
+          periodo: request.body.periodo,
+          totalCompradores: request.body.compradores.length,
+        },
+        'importando base interna',
+      )
+      const cliente = await fastify.clienteRepo.buscarPorIdDoOwner(request.params.id, request.user.sub)
       if (!cliente) {
         return reply.code(404).send({
           statusCode: 404,
@@ -181,10 +213,50 @@ const clientesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         compradores: request.body.compradores,
       })
 
+      request.log.info(
+        {
+          clienteId: request.params.id,
+          totalImportados: request.body.compradores.length,
+        },
+        'base interna importada',
+      )
       return reply.code(201).send({
         message: 'Base interna importada.',
         totalImportados: request.body.compradores.length,
       })
+    },
+  )
+  fastify.get(
+    '/clientes/:id/compradores-enriquecidos',
+    {
+      schema: {
+        summary: 'Compradores com atributos consolidados',
+        description:
+          'Retorna todos os compradores da base interna com seus atributos originais mesclados com os últimos enriquecimentos bem-sucedidos de cada fonte.',
+        tags: ['Clientes'],
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: {
+          200: ListaCompradoresEnriquecidosResponse,
+          404: ErrorResponse,
+        },
+      },
+    },
+    async function compradoresEnriquecidosHandler(request) {
+      const cliente = await assertClienteDoUsuario(
+        fastify,
+        request.params.id,
+        request.user.sub,
+      )
+
+      const service = new EnriquecimentoService(
+        fastify.baseInternaRepo,
+        fastify.perfilRepo,
+        [],
+        fastify.enriquecimentoCompradorRepo,
+      )
+      const compradores = await service.buscarCompradoresConsolidados(cliente.id)
+      return { total: compradores.length, compradores }
     },
   )
 }

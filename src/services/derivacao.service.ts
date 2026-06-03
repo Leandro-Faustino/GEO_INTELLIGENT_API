@@ -18,6 +18,15 @@ export class DerivacaoService {
     tipoAlvo: string,
     nome?: string,
   ): Promise<PerfilIdealDTO> {
+    const perfil = await this.calcularPerfil(clienteId, tipoAlvo, nome)
+    return this.perfilRepo.salvar(perfil)
+  }
+
+  async calcularPerfil(
+    clienteId: string,
+    tipoAlvo: string,
+    nome?: string,
+  ): Promise<PerfilIdealDTO> {
     const base = await this.baseInternaRepo.buscarPorCliente(clienteId)
     if (!base) {
       throw Object.assign(new Error('Base interna não encontrada.'), {
@@ -26,7 +35,10 @@ export class DerivacaoService {
     }
 
     const bonsCompradores = base.compradores.filter(
-      (comprador) => comprador.ativo && comprador.frequencia >= 2,
+      (comprador) =>
+        comprador.ativo &&
+        comprador.frequencia >= 2 &&
+        comprador.tipo === tipoAlvo,
     )
     if (bonsCompradores.length < 3) {
       throw Object.assign(
@@ -53,7 +65,7 @@ export class DerivacaoService {
     }
 
     const now = new Date().toISOString()
-    return this.perfilRepo.salvar({
+    return {
       id: randomUUID(),
       clienteId,
       nome: nome ?? `Perfil ${tipoAlvo} derivado`,
@@ -63,7 +75,7 @@ export class DerivacaoService {
       exclusoes: [],
       createdAt: now,
       updatedAt: now,
-    })
+    }
   }
 
   private extrairCriterios(
@@ -85,7 +97,10 @@ export class DerivacaoService {
     for (const [nome, valores] of atributos) {
       const numericos = valores.map((valor) => Number(valor)).filter(Number.isFinite)
 
-      if (numericos.length >= valores.length * 0.8) {
+      if (
+        numericos.length >= valores.length * 0.8 &&
+        !isCodigoCategorico(nome, valores)
+      ) {
         criterios.push({
           nome,
           valorMin: Math.min(...numericos),
@@ -122,4 +137,20 @@ export class DerivacaoService {
 
 function arredondar(valor: number): number {
   return Math.round(valor * 1000) / 1000
+}
+
+function isCodigoCategorico(nome: string, valores: unknown[]): boolean {
+  const nomeNormalizado = nome.toLocaleLowerCase('pt-BR')
+  if (
+    nomeNormalizado.includes('cnae') ||
+    nomeNormalizado.includes('codigo') ||
+    nomeNormalizado.includes('código')
+  ) {
+    return true
+  }
+
+  return valores.some((valor) => {
+    const texto = String(valor).replace(/\D/g, '')
+    return texto.length >= 6
+  })
 }

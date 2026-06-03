@@ -1,10 +1,14 @@
 import { type FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
+import { Type } from '@sinclair/typebox'
 import {
   EntregaResponse,
   FeedbackBody,
+  FeedbackResponse,
   MontarEntregaBody,
 } from '../../schemas/entregas/index.js'
 import { ErrorResponse, IdParams } from '../../schemas/shared/index.js'
+import { assertClienteDoUsuario } from '../helpers/assert-cliente-owner.js'
+import { oportunidadesParaCsv, oportunidadesParaJson } from '../../services/exportacao.service.js'
 
 const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.post(
@@ -12,20 +16,70 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
     {
       schema: {
         summary: 'Montar entrega',
-        description: 'Monta uma entrega de oportunidades no formato solicitado.',
+        description: 'Monta uma entrega de oportunidades a partir de uma análise existente.',
         tags: ['Entregas'],
         security: [{ bearerAuth: [] }],
         body: MontarEntregaBody,
-        response: { 201: EntregaResponse, 422: ErrorResponse },
+        response: { 201: EntregaResponse, 404: ErrorResponse, 422: ErrorResponse },
       },
     },
-    async (_request, reply) =>
-      reply.code(422).send({
-        statusCode: 422,
-        error: 'Unprocessable Entity',
-        message: 'Serviço de entrega ainda não implementado.',
-      }),
+    async function montarEntregaHandler(request, reply) {
+      const cliente = await assertClienteDoUsuario(
+        fastify,
+        request.body.clienteId,
+        request.user.sub,
+      )
+
+      request.log.info(
+        {
+          clienteId: request.body.clienteId,
+          analiseId: request.body.analiseId,
+          periodo: request.body.periodo,
+          formato: request.body.formato,
+        },
+        'montagem de entrega solicitada',
+      )
+
+      const entrega = await fastify.entregaService.montarEntrega(
+        cliente.id,
+        request.body.analiseId,
+        request.body.periodo,
+        request.body.formato,
+      )
+
+      request.log.info({ entregaId: entrega.id }, 'entrega montada')
+      return reply.code(201).send(entrega)
+    },
   )
+
+  fastify.get('/entregas', {
+    schema: {
+      summary: 'Listar entregas por cliente',
+      description: 'Retorna o histórico paginado de entregas de um cliente.',
+      tags: ['Entregas'],
+      security: [{ bearerAuth: [] }],
+      querystring: Type.Object(
+        {
+          clienteId: Type.String({ minLength: 1 }),
+          limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+          offset: Type.Optional(Type.Integer({ minimum: 0, default: 0 })),
+        },
+        { additionalProperties: false },
+      ),
+      response: {
+        200: Type.Object({
+          total: Type.Integer(),
+          items: Type.Array(EntregaResponse),
+        }),
+        403: ErrorResponse,
+      },
+    },
+  }, async function listarEntregasHandler(request) {
+    const { clienteId, limit = 20, offset = 0 } = request.query
+    const cliente = await assertClienteDoUsuario(fastify, clienteId, request.user.sub)
+    const { items, total } = await fastify.entregaRepo.listarPorCliente(cliente.id, limit, offset)
+    return { total, items }
+  })
 
   fastify.get(
     '/entregas/:id',
@@ -36,16 +90,45 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         tags: ['Entregas'],
         security: [{ bearerAuth: [] }],
         params: IdParams,
-        response: { 200: EntregaResponse, 404: ErrorResponse },
+        response: { 200: EntregaResponse, 404: ErrorResponse, 403: ErrorResponse },
       },
     },
-    async (request, reply) =>
-      reply.code(404).send({
-        statusCode: 404,
-        error: 'Not Found',
-        message: `Entrega '${request.params.id}' não encontrada.`,
-      }),
+    async function buscarEntregaPorIdHandler(request, reply) {
+      const entrega = await fastify.entregaService.buscarEntregaPorId(request.params.id)
+      if (!entrega) {
+        return reply.code(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Entrega '${request.params.id}' não encontrada.`,
+        })
+      }
+
+      await assertClienteDoUsuario(fastify, entrega.clienteId, request.user.sub)
+      return entrega
+    },
   )
+
+  fastify.get('/entregas/:id/feedbacks', {
+    schema: {
+      summary: 'Listar feedbacks de uma entrega',
+      description: 'Retorna todos os feedbacks registrados para uma entrega.',
+      tags: ['Entregas'],
+      security: [{ bearerAuth: [] }],
+      params: IdParams,
+      response: {
+        200: Type.Array(FeedbackResponse),
+        403: ErrorResponse,
+        404: ErrorResponse,
+      },
+    },
+  }, async function listarFeedbacksEntregaHandler(request, reply) {
+    const entrega = await fastify.entregaService.buscarEntregaPorId(request.params.id)
+    if (!entrega) {
+      return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: `Entrega '${request.params.id}' não encontrada.` })
+    }
+    await assertClienteDoUsuario(fastify, entrega.clienteId, request.user.sub)
+    return fastify.feedbackRepo.buscarPorEntregaId(request.params.id)
+  })
 
   fastify.post(
     '/entregas/:id/feedback',
@@ -57,15 +140,129 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         security: [{ bearerAuth: [] }],
         params: IdParams,
         body: FeedbackBody,
-        response: { 200: EntregaResponse, 404: ErrorResponse, 422: ErrorResponse },
+        response: { 200: FeedbackResponse, 404: ErrorResponse, 403: ErrorResponse },
       },
     },
-    async (_request, reply) =>
-      reply.code(422).send({
-        statusCode: 422,
-        error: 'Unprocessable Entity',
-        message: 'Serviço de feedback ainda não implementado.',
-      }),
+    async function registrarFeedbackEntregaHandler(request, reply) {
+      const entrega = await fastify.entregaService.buscarEntregaPorId(request.params.id)
+      if (!entrega) {
+        return reply.code(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Entrega '${request.params.id}' não encontrada.`,
+        })
+      }
+
+      await assertClienteDoUsuario(fastify, entrega.clienteId, request.user.sub)
+
+      request.log.info({ entregaId: request.params.id }, 'feedback de entrega solicitado')
+      const feedbackInput = {
+        ...(request.body.exclusoes ? { exclusoes: request.body.exclusoes } : {}),
+        ...(request.body.ajustes ? { ajustes: request.body.ajustes } : {}),
+        ...(request.body.resultados ? { resultados: request.body.resultados } : {}),
+        ...(request.body.observacoes ? { observacoes: request.body.observacoes } : {}),
+      }
+      const feedback = await fastify.entregaService.registrarFeedback(
+        request.params.id,
+        feedbackInput,
+      )
+
+      if (fastify.motor && feedback.resultados.length > 0) {
+        try {
+          await fastify.motor.feedback(
+            {
+              feedbackId: feedback.id,
+              clienteId: entrega.clienteId,
+              resultados: feedback.resultados.map((resultado) => ({
+                entidadeAlvoId: resultado.entidadeAlvoId,
+                converteu: resultado.converteu,
+                atributos: resultado.atributos,
+                ...(resultado.ticketReal !== undefined
+                  ? { ticketReal: resultado.ticketReal }
+                  : {}),
+              })),
+            },
+            request.id,
+          )
+        } catch (error) {
+          request.log.warn(
+            { err: error instanceof Error ? error.message : String(error) },
+            'feedback persistido localmente, mas envio ao motor falhou',
+          )
+        }
+      }
+
+      request.log.info(
+        { entregaId: request.params.id, feedbackId: feedback.id },
+        'feedback de entrega registrado',
+      )
+
+      return reply.code(200).send({
+        ...feedback,
+        resultados: feedback.resultados.map((resultado) => ({
+          entidadeAlvoId: resultado.entidadeAlvoId,
+          converteu: resultado.converteu,
+          ...(resultado.ticketReal !== undefined
+            ? { ticketReal: resultado.ticketReal }
+            : {}),
+        })),
+      })
+    },
+  )
+
+  fastify.get(
+    '/entregas/:id/exportar',
+    {
+      schema: {
+        summary: 'Exportar oportunidades da entrega',
+        description:
+          'Gera o arquivo de oportunidades da entrega em CSV ou JSON. ' +
+          'O CSV é adequado para planilhas; o JSON para integrações via API.',
+        tags: ['Entregas'],
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        querystring: Type.Object(
+          {
+            formato: Type.Union(
+              [Type.Literal('csv'), Type.Literal('json')],
+              { default: 'json' },
+            ),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 200: Type.String(), 403: ErrorResponse, 404: ErrorResponse },
+      },
+    },
+    async function exportarEntregaHandler(request, reply) {
+      const entrega = await fastify.entregaService.buscarEntregaPorId(request.params.id)
+      if (!entrega) {
+        return reply.code(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Entrega '${request.params.id}' não encontrada.`,
+        })
+      }
+
+      await assertClienteDoUsuario(fastify, entrega.clienteId, request.user.sub)
+
+      const analise = await fastify.analiseRepo.buscarPorIdParaCliente(entrega.analiseId, entrega.clienteId)
+      const oportunidades = analise?.oportunidades ?? []
+
+      const formato = request.query.formato ?? 'json'
+      const nomeArquivo = `entrega-${entrega.id}-${entrega.periodo}`
+
+      if (formato === 'csv') {
+        const csv = oportunidadesParaCsv(oportunidades)
+        reply.type('text/csv; charset=utf-8')
+        reply.header('Content-Disposition', `attachment; filename="${nomeArquivo}.csv"`)
+        return reply.code(200).send(csv)
+      }
+
+      const json = oportunidadesParaJson(entrega, oportunidades)
+      reply.type('application/json; charset=utf-8')
+      reply.header('Content-Disposition', `attachment; filename="${nomeArquivo}.json"`)
+      return reply.code(200).send(JSON.stringify(json, null, 2))
+    },
   )
 }
 

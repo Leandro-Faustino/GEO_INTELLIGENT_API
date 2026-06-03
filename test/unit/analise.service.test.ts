@@ -1,139 +1,166 @@
-import { test } from 'node:test'
+import { describe, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { AnaliseService } from '../../src/services/analise.service.js'
+import {
+  MemoryAnaliseRepo,
+  MemoryBaseInternaRepo,
+  MemoryEntidadeAlvoRepo,
+  MemoryPerfilRepo,
+} from '../../src/repositories/memory/index.js'
 import type {
-  AnaliseDTO,
-  BaseInternaDTO,
   EntidadeAlvoDTO,
-  IAnaliseRepository,
-  IBaseInternaRepository,
-  IEntidadeAlvoRepository,
-  IPerfilRepository,
   PerfilIdealDTO,
 } from '../../src/repositories/interfaces/index.js'
 
-class PerfilRepoFake implements IPerfilRepository {
-  async salvar(perfil: PerfilIdealDTO): Promise<PerfilIdealDTO> {
-    return perfil
-  }
-
-  async buscarPorId(): Promise<PerfilIdealDTO | null> {
-    return null
-  }
-
-  async buscarPorCliente(): Promise<PerfilIdealDTO[]> {
-    return [
+function perfilHotelaria(
+  clienteId: string,
+  exclusoes: string[] = [],
+): PerfilIdealDTO {
+  const now = new Date().toISOString()
+  return {
+    id: 'perfil-1',
+    clienteId,
+    nome: 'Hotelaria',
+    tipo: 'pj',
+    hipotetico: false,
+    exclusoes,
+    createdAt: now,
+    updatedAt: now,
+    criterios: [
       {
-        id: 'perfil-1',
-        clienteId: 'cliente-1',
-        nome: 'Perfil hoteis',
-        tipo: 'pj',
-        hipotetico: false,
-        criterios: [
-          {
-            nome: 'cnae',
-            valorMin: ['5510-8/01'],
-            valorMax: ['5510-8/01'],
-            peso: 0.7,
-            tipoComparacao: 'enum',
-          },
-          {
-            nome: 'porte',
-            valorMin: ['medio'],
-            valorMax: ['medio'],
-            peso: 0.3,
-            tipoComparacao: 'enum',
-          },
-        ],
-        exclusoes: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        nome: 'cnae',
+        valorMin: ['5510801'],
+        valorMax: ['5510801'],
+        peso: 0.6,
+        tipoComparacao: 'enum',
       },
-    ]
+      {
+        nome: 'porte',
+        valorMin: 2,
+        valorMax: 4,
+        peso: 0.4,
+        tipoComparacao: 'range',
+      },
+    ],
   }
 }
 
-class EntidadeRepoFake implements IEntidadeAlvoRepository {
-  async salvarLote(): Promise<void> {}
-
-  async buscarPorEscopo(): Promise<EntidadeAlvoDTO[]> {
-    return [
-      entidade('hotel-panorama', 'Hotel Panorama', '5510-8/01', 'medio'),
-      entidade('hotel-bela-vista', 'Hotel Bela Vista', '5510-8/01', 'medio'),
-      entidade('padaria-central', 'Padaria Central', '1091-1/02', 'medio'),
-    ]
+function entidade(id: string, cnae: string, porte: number): EntidadeAlvoDTO {
+  return {
+    identificador: id,
+    nome: `Entidade ${id}`,
+    tipo: 'pj',
+    atributos: { cnae, porte },
+    endereco: 'Rua X, Joinville',
+    latitude: 0,
+    longitude: 0,
+    fonte: 'teste',
+    escopo: 'Joinville',
   }
 }
 
-class BaseInternaRepoFake implements IBaseInternaRepository {
-  async salvar(base: BaseInternaDTO): Promise<BaseInternaDTO> {
-    return base
-  }
+async function montar(
+  clienteId: string,
+  entidades: EntidadeAlvoDTO[],
+  exclusoes: string[] = [],
+) {
+  const perfilRepo = new MemoryPerfilRepo()
+  const entidadeRepo = new MemoryEntidadeAlvoRepo([])
+  const baseRepo = new MemoryBaseInternaRepo()
+  const analiseRepo = new MemoryAnaliseRepo()
+  await perfilRepo.salvar(perfilHotelaria(clienteId, exclusoes))
+  await entidadeRepo.salvarLote(entidades)
 
-  async buscarPorCliente(): Promise<BaseInternaDTO> {
-    return {
-      clienteId: 'cliente-1',
+  const service = new AnaliseService(
+    perfilRepo,
+    entidadeRepo,
+    baseRepo,
+    analiseRepo,
+  )
+  return { service, baseRepo, analiseRepo }
+}
+
+describe('AnaliseService', () => {
+  test('hotel similar gera oportunidade de alta prioridade', async () => {
+    const { service } = await montar('c1', [entidade('e1', '5510801', 3)])
+
+    const analise = await service.executarLookalike('c1', 'Joinville', 0.1)
+
+    assert.equal(analise.oportunidades.length, 1)
+    assert.equal(analise.oportunidades[0]?.entidadeAlvoId, 'e1')
+    assert.equal(analise.oportunidades[0]?.prioridade, 'alta')
+  })
+
+  test('entidade dissimilar fica abaixo do limiar', async () => {
+    const { service } = await montar('c1', [entidade('padaria', '4721102', 1)])
+
+    const analise = await service.executarLookalike('c1', 'Joinville', 0.8)
+
+    assert.equal(analise.oportunidades.length, 0)
+  })
+
+  test('exclui quem já é cliente', async () => {
+    const { service, baseRepo } = await montar('c1', [
+      entidade('e1', '5510801', 3),
+    ])
+    await baseRepo.salvar({
+      clienteId: 'c1',
       periodo: '2026-05',
       totalRegistros: 1,
       compradores: [
         {
-          identificador: 'hotel-bela-vista',
-          nome: 'Hotel Bela Vista',
+          identificador: 'e1',
+          nome: 'Já cliente',
           tipo: 'pj',
           atributosOriginais: {},
-          ticketMedio: 1000,
+          ticketMedio: 100,
           frequencia: 3,
           ativo: true,
         },
       ],
-    }
-  }
-}
+    })
 
-class AnaliseRepoFake implements IAnaliseRepository {
-  async salvar(analise: AnaliseDTO): Promise<AnaliseDTO> {
-    return analise
-  }
+    const analise = await service.executarLookalike('c1', 'Joinville', 0.1)
 
-  async buscarPorId(): Promise<AnaliseDTO | null> {
-    return null
-  }
-}
+    assert.equal(analise.oportunidades.length, 0)
+  })
 
-test('AnaliseService ranqueia oportunidades e exclui clientes conhecidos', async () => {
-  const service = new AnaliseService(
-    new PerfilRepoFake(),
-    new EntidadeRepoFake(),
-    new BaseInternaRepoFake(),
-    new AnaliseRepoFake(),
-  )
-  const analise = await service.executarLookalike('cliente-1', 'zona-sul', 0.3)
+  test('respeita exclusões do perfil', async () => {
+    const { service } = await montar('c1', [entidade('e1', '5510801', 3)], ['e1'])
 
-  assert.equal(analise.oportunidades.length, 2)
-  assert.equal(analise.oportunidades[0]?.entidadeAlvoId, 'hotel-panorama')
-  assert.equal(
-    analise.oportunidades.some(
-      (oportunidade) => oportunidade.entidadeAlvoId === 'hotel-bela-vista',
-    ),
-    false,
-  )
+    const analise = await service.executarLookalike('c1', 'Joinville', 0.1)
+
+    assert.equal(analise.oportunidades.length, 0)
+  })
+
+  test('perfil ausente gera 404', async () => {
+    const service = new AnaliseService(
+      new MemoryPerfilRepo(),
+      new MemoryEntidadeAlvoRepo([]),
+      new MemoryBaseInternaRepo(),
+      new MemoryAnaliseRepo(),
+    )
+
+    await assert.rejects(
+      () => service.executarLookalike('sem-perfil', 'Joinville'),
+      (error: { statusCode?: number }) => error.statusCode === 404,
+    )
+  })
+
+  test('ranqueia por similaridade decrescente e salva análise', async () => {
+    const { service, analiseRepo } = await montar('c1', [
+      entidade('match-perfeito', '5510801', 3),
+      entidade('match-parcial', '5510801', 5),
+    ])
+
+    const analise = await service.executarLookalike('c1', 'Joinville', 0)
+    const salva = await analiseRepo.buscarPorId(analise.id)
+
+    assert.ok(analise.oportunidades.length >= 2)
+    assert.ok(
+      analise.oportunidades[0]!.score.valor >=
+        analise.oportunidades[1]!.score.valor,
+    )
+    assert.equal(salva?.id, analise.id)
+  })
 })
-
-function entidade(
-  identificador: string,
-  nome: string,
-  cnae: string,
-  porte: string,
-): EntidadeAlvoDTO {
-  return {
-    identificador,
-    nome,
-    tipo: 'pj',
-    atributos: { cnae, porte },
-    endereco: 'Rua Teste',
-    latitude: 0,
-    longitude: 0,
-    fonte: 'fixture',
-    escopo: 'zona-sul',
-  }
-}

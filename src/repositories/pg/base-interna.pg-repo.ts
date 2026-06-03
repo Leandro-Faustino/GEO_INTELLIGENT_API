@@ -4,15 +4,13 @@ import type {
   CompradorConhecidoDTO,
   IBaseInternaRepository,
 } from '../interfaces/index.js'
+import { runInClienteContext } from './tenant-context.js'
 
 export class BaseInternaPgRepository implements IBaseInternaRepository {
   constructor(private readonly pool: Pool) {}
 
   async salvar(base: BaseInternaDTO): Promise<BaseInternaDTO> {
-    const client = await this.pool.connect()
-    try {
-      await client.query('begin')
-
+    return runInClienteContext(this.pool, base.clienteId, async (client) => {
       const baseResult = await client.query<{ id: string }>(
         `insert into bases_internas (cliente_id, periodo, total_registros)
          values ($1, $2, $3)
@@ -43,43 +41,38 @@ export class BaseInternaPgRepository implements IBaseInternaRepository {
           ],
         )
       }
-
-      await client.query('commit')
       return base
-    } catch (error) {
-      await client.query('rollback')
-      throw error
-    } finally {
-      client.release()
-    }
+    })
   }
 
   async buscarPorCliente(clienteId: string): Promise<BaseInternaDTO | null> {
-    const baseResult = await this.pool.query(
-      `select id, cliente_id, periodo, total_registros
-       from bases_internas
-       where cliente_id = $1
-       order by created_at desc
-       limit 1`,
-      [clienteId],
-    )
-    const base = baseResult.rows[0]
-    if (!base) return null
+    return runInClienteContext(this.pool, clienteId, async (client) => {
+      const baseResult = await client.query(
+        `select id, cliente_id, periodo, total_registros
+         from bases_internas
+         where cliente_id = $1
+         order by created_at desc
+         limit 1`,
+        [clienteId],
+      )
+      const base = baseResult.rows[0]
+      if (!base) return null
 
-    const compradoresResult = await this.pool.query(
-      `select identificador, nome, tipo, atributos_originais, ticket_medio, frequencia, ativo
-       from compradores_conhecidos
-       where base_interna_id = $1
-       order by created_at asc`,
-      [base.id],
-    )
+      const compradoresResult = await client.query(
+        `select identificador, nome, tipo, atributos_originais, ticket_medio, frequencia, ativo
+         from compradores_conhecidos
+         where base_interna_id = $1
+         order by created_at asc`,
+        [base.id],
+      )
 
-    return {
-      clienteId: String(base.cliente_id),
-      periodo: String(base.periodo),
-      totalRegistros: Number(base.total_registros),
-      compradores: compradoresResult.rows.map(mapComprador),
-    }
+      return {
+        clienteId: String(base.cliente_id),
+        periodo: String(base.periodo),
+        totalRegistros: Number(base.total_registros),
+        compradores: compradoresResult.rows.map(mapComprador),
+      }
+    })
   }
 }
 

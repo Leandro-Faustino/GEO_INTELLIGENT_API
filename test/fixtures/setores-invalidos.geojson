@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "nome": "Sem codigo de setor"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-48.8456, -26.3044]
+      }
+    }
+  ]
+}

@@ -6,7 +6,7 @@ import { ErrorResponse } from '../../schemas/shared/index.js'
 const FonteParams = Type.Object(
   {
     fonte: Type.String({
-      enum: ['cnpj', 'ibge', 'geocoder', 'registro-imoveis'],
+      enum: ['cnpj', 'ibge', 'geocoder', 'registro-imoveis', 'cnpj-receita-federal', 'ibge-censo'],
     }),
   },
   { additionalProperties: false },
@@ -18,24 +18,36 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
     {
       schema: {
         summary: 'Listar fontes externas',
-        description: 'Lista adapters disponíveis e o estado atual do circuit breaker.',
+        description:
+          'Lista adapters disponíveis, seu modo operacional atual e o estado do circuit breaker.',
         tags: ['Fontes'],
         security: [{ bearerAuth: [] }],
         response: {
           200: Type.Array(
             Type.Object({
               nome: Type.String(),
+              modo: Type.String({ enum: ['real', 'mock', 'hibrido'] }),
               circuitState: Type.String(),
+              consecutiveFailures: Type.Integer({ minimum: 0 }),
+              providerMode: Type.Optional(Type.String()),
+              isOptional: Type.Optional(Type.Boolean()),
+              observacao: Type.Optional(Type.String()),
             }),
           ),
         },
       },
     },
-    async () =>
-      fastify.adapters.todas.map((adapter) => ({
+    async function listarFontesHandler() {
+      return fastify.adapters.todas.map((adapter) => ({
         nome: adapter.nome,
-        circuitState: (adapter as { circuitState?: string }).circuitState ?? 'unknown',
-      })),
+        modo: adapter.modo,
+        circuitState: adapter.circuitState,
+        consecutiveFailures: adapter.consecutiveFailures,
+        ...(adapter.providerMode ? { providerMode: adapter.providerMode } : {}),
+        ...(adapter.isOptional ? { isOptional: adapter.isOptional } : {}),
+        ...(adapter.observacao ? { observacao: adapter.observacao } : {}),
+      }))
+    },
   )
 
   fastify.post(
@@ -64,10 +76,18 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         },
       },
     },
-    async (request) => {
+    async function consultarFonteHandler(request) {
+      request.log.info(
+        { fonte: request.params.fonte, parametros: request.body.parametros },
+        'consulta em fonte externa solicitada',
+      )
       const adapter = resolverAdapter(fastify, request.params.fonte)
       const resultados = await adapter.consultar(request.body.parametros)
 
+      request.log.info(
+        { fonte: adapter.nome, total: resultados.length },
+        'consulta em fonte externa concluida',
+      )
       return {
         fonte: adapter.nome,
         total: resultados.length,
@@ -96,9 +116,15 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
         },
       },
     },
-    async (request) => {
+    async function enriquecerFonteHandler(request) {
+      request.log.info(
+        { fonte: request.params.fonte, identificador: request.body.identificador },
+        'enriquecimento em fonte externa solicitado',
+      )
       const adapter = resolverAdapter(fastify, request.params.fonte)
-      return adapter.enriquecer(request.body.identificador)
+      const resultado = await adapter.enriquecer(request.body.identificador)
+      request.log.info({ fonte: adapter.nome }, 'enriquecimento em fonte externa concluido')
+      return resultado
     },
   )
 }
@@ -106,15 +132,19 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
 function resolverAdapter(
   fastify: FastifyInstance,
   fonte: string,
-) {
-  const adapters = {
+): FastifyInstance['adapters']['todas'][number] {
+  const adapters: Record<string, FastifyInstance['adapters']['todas'][number]> = {
     cnpj: fastify.adapters.cnpj,
+    'cnpj-receita-federal': fastify.adapters.cnpj,
     ibge: fastify.adapters.ibge,
+    'ibge-censo': fastify.adapters.ibge,
     geocoder: fastify.adapters.geocoder,
     'registro-imoveis': fastify.adapters.registroImoveis,
   }
 
-  return adapters[fonte as keyof typeof adapters]
+  const adapter = adapters[fonte]
+  if (!adapter) throw Object.assign(new Error(`Fonte desconhecida: ${fonte}`), { statusCode: 404 })
+  return adapter
 }
 
 export default fontesRoutes

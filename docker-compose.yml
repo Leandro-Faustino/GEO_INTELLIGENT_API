@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password-change-me}
       POSTGRES_DB: ${POSTGRES_DB:-geolead}
     ports:
-      - "${POSTGRES_HOST_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./src/migrations:/docker-entrypoint-initdb.d:ro
@@ -27,7 +27,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-local-mongo-password-change-me}
       MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-geolead}
     ports:
-      - "${MONGO_HOST_PORT:-27017}:27017"
+      - "127.0.0.1:${MONGO_HOST_PORT:-27017}:27017"
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -57,12 +57,73 @@ services:
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
     ports:
-      - "${REDIS_HOST_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+    ports:
+      - "127.0.0.1:${ENGINE_HOST_PORT:-8000}:8000"
+    volumes:
+      - engine_models:/home/appuser/app/models
+    environment:
+      ENVIRONMENT: production
+      HOST: 0.0.0.0
+      PORT: 8000
+      LOG_LEVEL: info
+      METRICS_ENABLED: "true"
+      REQUEST_ID_HEADER: x-request-id
+      MODEL_VERSION: "0.1.0"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-local-internal-api-key-change-me-32}
+      EMBEDDINGS_ENABLED: ${EMBEDDINGS_ENABLED:-false}
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-api}
+      EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-text-embedding-3-small}
+      HOOKS_LLM_ENABLED: ${HOOKS_LLM_ENABLED:-false}
+      RETRAIN_MODE: ${RETRAIN_MODE:-inline}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  engine-worker:
+    profiles: ["worker"]
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+    command: >
+      celery
+      -A app.ml.tasks:celery_app
+      worker
+      --loglevel=info
+    environment:
+      ENVIRONMENT: production
+      LOG_LEVEL: info
+      MODEL_VERSION: "0.1.0"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-local-internal-api-key-change-me-32}
+      MODELS_DIR: models
+      RETRAIN_MODE: celery
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+    volumes:
+      - engine_models:/home/appuser/app/models
+    depends_on:
+      redis:
+        condition: service_healthy
 
   app:
     build:
@@ -93,6 +154,20 @@ services:
       METRICS_ENABLED: "true"
       TRACING_ENABLED: ${TRACING_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
+      MOTOR_URL: ${MOTOR_URL:-http://engine:8000}
+      MOTOR_API_KEY: ${MOTOR_API_KEY:-local-internal-api-key-change-me-32}
+      MOTOR_TIMEOUT_MS: "10000"
+      ADMIN_EMAIL: alice@example.com
+      ADMIN_PASSWORD_HASH: "scrypt$$16384$$8$$1$$6c6f63616c2d746573742d73616c74$$edaa47f8f73543d95783c917425911f274a6424c87fdf72d42f76c6502120f3ad34b7b8a7ec1394c5cd27d29afb278dd8bf5cc49166b4db23684e19987d610b8"
+      EMBEDDINGS_ENABLED: ${EMBEDDINGS_ENABLED:-false}
+      EMBEDDINGS_PROVIDER: ${EMBEDDINGS_PROVIDER:-api}
+      EMBEDDINGS_MODEL: ${EMBEDDINGS_MODEL:-text-embedding-3-small}
+      HOOKS_LLM_ENABLED: ${HOOKS_LLM_ENABLED:-false}
+      RETRAIN_MODE: ${RETRAIN_MODE:-inline}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      CNPJ_API_URL: ${CNPJ_API_URL:-}
+      CNPJ_API_KEY: ${CNPJ_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,7 +175,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      engine:
+        condition: service_healthy
 
 volumes:
   postgres_data:
   mongo_data:
+  engine_models:

@@ -32,6 +32,7 @@ export const DerivarPerfilBody = Type.Object(
 export const PerfilResponse = Type.Object(
   {
     id: Type.String(),
+    clienteId: Type.String(),
     nome: Type.String(),
     tipo: Type.String(),
     hipotetico: Type.Boolean(),

@@ -2,6 +2,9 @@ import { BaseAdapter } from './base-adapter.js'
 
 export class AdaptadorRegistroImoveis extends BaseAdapter {
   readonly nome = 'registro-imoveis'
+  readonly isOptional = true
+  readonly observacao =
+    'Fonte paga/privada. Requer provedor externo e credencial. Dados atuais são mock e não contribuem para critérios de perfil.'
 
   async consultar(
     parametros: Record<string, unknown>,

@@ -101,6 +101,10 @@ export const envSchema = {
       type: 'boolean',
       default: false,
     },
+    UNDER_PRESSURE_ENABLED: {
+      type: 'boolean',
+      default: true,
+    },
     OTEL_EXPORTER_OTLP_ENDPOINT: {
       type: 'string',
       default: 'http://localhost:4318/v1/traces',
@@ -108,6 +112,117 @@ export const envSchema = {
     SWAGGER_ENABLED: {
       type: 'boolean',
       default: true,
+    },
+    ENVIRONMENT: {
+      type: 'string',
+      default: 'development',
+    },
+    ENGINE_HOST_PORT: {
+      type: 'integer',
+      default: 8000,
+    },
+    INTERNAL_API_KEY: {
+      type: 'string',
+      default: 'troque-em-producao-min-32-caracteres!!',
+    },
+    MODEL_VERSION: {
+      type: 'string',
+      default: '0.1.0',
+    },
+    MOTOR_URL: {
+      type: 'string',
+      default: '',
+    },
+    MOTOR_API_KEY: {
+      type: 'string',
+      default: 'troque-em-producao-min-32-caracteres!!',
+    },
+    MOTOR_TIMEOUT_MS: {
+      type: 'integer',
+      default: 10_000,
+    },
+    EMBEDDINGS_ENABLED: {
+      type: 'boolean',
+      default: false,
+    },
+    EMBEDDINGS_PROVIDER: {
+      type: 'string',
+      enum: ['api', 'sbert'],
+      default: 'api',
+    },
+    EMBEDDINGS_MODEL: {
+      type: 'string',
+      default: 'text-embedding-3-small',
+    },
+    HOOKS_LLM_ENABLED: {
+      type: 'boolean',
+      default: false,
+    },
+    RETRAIN_MODE: {
+      type: 'string',
+      enum: ['inline', 'celery'],
+      default: 'inline',
+    },
+    CELERY_BROKER_URL: {
+      type: 'string',
+      default: '',
+    },
+    CELERY_RESULT_BACKEND: {
+      type: 'string',
+      default: '',
+    },
+    CNPJ_API_URL: {
+      type: 'string',
+      default: '',
+    },
+    CNPJ_API_KEY: {
+      type: 'string',
+      default: '',
+    },
+    BRASILAPI_BASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    RECEITAWS_BASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    IBGE_BASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    IDH_MUNICIPAL_DATASET_PATH: {
+      type: 'string',
+      default: '',
+    },
+    GEOCODER_PROVIDER_MODE: {
+      type: 'string',
+      enum: ['nominatim-public', 'nominatim-selfhosted', 'commercial'],
+      default: 'nominatim-public',
+    },
+    NOMINATIM_BASE_URL: {
+      type: 'string',
+      default: '',
+    },
+    NOMINATIM_USER_AGENT: {
+      type: 'string',
+      default: '',
+    },
+    NOMINATIM_THROTTLE_MS: {
+      type: 'integer',
+      default: 1000,
+    },
+    SETORES_CENSITARIOS_GEOJSON_PATH: {
+      type: 'string',
+      default: '',
+    },
+    ADMIN_EMAIL: {
+      type: 'string',
+      default: '',
+    },
+    ADMIN_PASSWORD_HASH: {
+      type: 'string',
+      default: '',
     },
   },
 } as const
@@ -138,6 +253,34 @@ export interface AppConfig {
   CACHE_TTL_SECONDS: number
   METRICS_ENABLED: boolean
   TRACING_ENABLED: boolean
+  UNDER_PRESSURE_ENABLED: boolean
   OTEL_EXPORTER_OTLP_ENDPOINT: string
   SWAGGER_ENABLED: boolean
+  ENVIRONMENT: string
+  ENGINE_HOST_PORT: number
+  INTERNAL_API_KEY: string
+  MODEL_VERSION: string
+  MOTOR_URL: string
+  MOTOR_API_KEY: string
+  MOTOR_TIMEOUT_MS: number
+  EMBEDDINGS_ENABLED: boolean
+  EMBEDDINGS_PROVIDER: 'api' | 'sbert'
+  EMBEDDINGS_MODEL: string
+  HOOKS_LLM_ENABLED: boolean
+  RETRAIN_MODE: 'inline' | 'celery'
+  CELERY_BROKER_URL: string
+  CELERY_RESULT_BACKEND: string
+  CNPJ_API_URL: string
+  CNPJ_API_KEY: string
+  BRASILAPI_BASE_URL: string
+  RECEITAWS_BASE_URL: string
+  IBGE_BASE_URL: string
+  IDH_MUNICIPAL_DATASET_PATH: string
+  GEOCODER_PROVIDER_MODE: 'nominatim-public' | 'nominatim-selfhosted' | 'commercial'
+  NOMINATIM_BASE_URL: string
+  NOMINATIM_USER_AGENT: string
+  NOMINATIM_THROTTLE_MS: number
+  SETORES_CENSITARIOS_GEOJSON_PATH: string
+  ADMIN_EMAIL: string
+  ADMIN_PASSWORD_HASH: string
 }
