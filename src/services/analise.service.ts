@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import type {
   AnaliseDTO,
+  CentroMapaDTO,
   CriterioDerivadoDTO,
   EntidadeAlvoDTO,
   IAnaliseRepository,
   IBaseInternaRepository,
   IEntidadeAlvoRepository,
   IPerfilRepository,
+  MapaResponseDTO,
   OportunidadeDTO,
 } from '../repositories/interfaces/index.js'
 
@@ -68,6 +70,16 @@ export class AnaliseService {
 
     oportunidades.sort((a, b) => b.score.valor - a.score.valor)
 
+    const coordsValidas = oportunidades.filter((o) => o.lat != null && o.lon != null)
+    const centroMapa: CentroMapaDTO | null =
+      coordsValidas.length > 0
+        ? {
+            lat: coordsValidas.reduce((s, o) => s + o.lat!, 0) / coordsValidas.length,
+            lon: coordsValidas.reduce((s, o) => s + o.lon!, 0) / coordsValidas.length,
+            zoom: 12,
+          }
+        : null
+
     const now = new Date().toISOString()
     return this.analiseRepo.salvar({
       id: randomUUID(),
@@ -78,9 +90,59 @@ export class AnaliseService {
       versaoModelo: VERSAO_MODELO_LOCAL,
       origem: 'local',
       oportunidades,
+      centroMapa,
       createdAt: now,
       updatedAt: now,
     })
+  }
+
+  async buscarDadosMapa(analiseId: string): Promise<MapaResponseDTO | null> {
+    const analise = await this.analiseRepo.buscarPorId(analiseId)
+    if (!analise) return null
+
+    const entidades = await this.entidadeRepo.buscarPorEscopo(analise.escopo, analise.tipo)
+    const base = await this.baseInternaRepo.buscarPorCliente(analise.clienteId)
+    const jaClientes = new Set(base?.compradores.map((c) => c.identificador) ?? [])
+
+    const scoreMap = new Map<string, { score: number; faixaScore: 'alta' | 'media' | 'baixa' }>()
+    for (const op of analise.oportunidades) {
+      const v = op.score.valor
+      scoreMap.set(op.entidadeAlvoId, {
+        score: v,
+        faixaScore: v >= 0.8 ? 'alta' : v >= 0.5 ? 'media' : 'baixa',
+      })
+    }
+
+    const mapaEntidades = entidades.map((e) => {
+      const scored = scoreMap.get(e.identificador)
+      return {
+        identificador: e.identificador,
+        nome: e.nome,
+        endereco: e.endereco,
+        lat: e.latitude ?? null,
+        lon: e.longitude ?? null,
+        score: scored?.score ?? null,
+        faixaScore: scored?.faixaScore ?? null,
+        jaCliente: jaClientes.has(e.identificador),
+      }
+    })
+
+    const comCoords = mapaEntidades.filter((e) => e.lat != null && e.lon != null)
+    const centroMapa: CentroMapaDTO | null =
+      comCoords.length > 0
+        ? {
+            lat: comCoords.reduce((s, e) => s + e.lat!, 0) / comCoords.length,
+            lon: comCoords.reduce((s, e) => s + e.lon!, 0) / comCoords.length,
+            zoom: 12,
+          }
+        : null
+
+    return {
+      analiseId,
+      centroMapa,
+      totalEntidades: mapaEntidades.length,
+      entidades: mapaEntidades,
+    }
   }
 
   private calcularSimilaridade(
@@ -160,19 +222,30 @@ function montarOportunidade(
   const { total, criteriosMatching } = resultado
   const pct = Math.round(total * 100)
   const probConversao = arredondar(total * 0.8)
+  const faixaScore: 'alta' | 'media' | 'baixa' =
+    total >= 0.8 ? 'alta' : total >= 0.5 ? 'media' : 'baixa'
 
   return {
     id: randomUUID(),
     entidadeAlvoId: entidade.identificador,
+    entidadeNome: entidade.nome,
+    entidadeCidade: entidade.escopo,
+    nome: entidade.nome,
+    endereco: entidade.endereco,
+    lat: entidade.latitude ?? null,
+    lon: entidade.longitude ?? null,
+    faixaScore,
     tipo: entidade.tipo,
     justificativa: montarJustificativa(pct, criteriosMatching),
     ganchoAbordagem: montarGancho(entidade.nome, criteriosMatching),
-    prioridade: total >= 0.8 ? 'alta' : total >= 0.5 ? 'media' : 'baixa',
+    prioridade: faixaScore,
     score: {
       valor: arredondar(total),
       similaridade: arredondar(total),
       probConversao,
     },
+    latitude: entidade.latitude ?? null,
+    longitude: entidade.longitude ?? null,
   }
 }
 

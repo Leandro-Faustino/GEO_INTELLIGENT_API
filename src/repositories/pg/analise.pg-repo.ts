@@ -125,16 +125,26 @@ async function inserirOportunidades(
 ): Promise<void> {
   await client.query(
     `INSERT INTO oportunidades
-      (id, analise_id, entidade_alvo_id, tipo, justificativa, gancho_abordagem,
-       prioridade, score_valor, score_similaridade, score_prob_conversao)
+      (id, analise_id, entidade_alvo_id, entidade_nome, entidade_cidade,
+       nome, endereco, faixa_score,
+       tipo, justificativa, gancho_abordagem,
+       prioridade, score_valor, score_similaridade, score_prob_conversao,
+       latitude, longitude)
      SELECT unnest($1::uuid[]), $2, unnest($3::text[]), unnest($4::text[]),
-            unnest($5::text[]), unnest($6::text[]),
-            unnest($7::text[]), unnest($8::numeric[]),
-            unnest($9::numeric[]), unnest($10::numeric[])`,
+            unnest($5::text[]), unnest($6::text[]), unnest($7::text[]),
+            unnest($8::text[]), unnest($9::text[]), unnest($10::text[]),
+            unnest($11::text[]), unnest($12::text[]), unnest($13::numeric[]),
+            unnest($14::numeric[]), unnest($15::numeric[]),
+            unnest($16::double precision[]), unnest($17::double precision[])`,
     [
       oportunidades.map((o) => o.id),
       analiseId,
       oportunidades.map((o) => o.entidadeAlvoId),
+      oportunidades.map((o) => o.entidadeNome),
+      oportunidades.map((o) => o.entidadeCidade),
+      oportunidades.map((o) => o.nome),
+      oportunidades.map((o) => o.endereco),
+      oportunidades.map((o) => o.faixaScore),
       oportunidades.map((o) => o.tipo),
       oportunidades.map((o) => o.justificativa),
       oportunidades.map((o) => o.ganchoAbordagem),
@@ -142,6 +152,8 @@ async function inserirOportunidades(
       oportunidades.map((o) => o.score.valor),
       oportunidades.map((o) => o.score.similaridade),
       oportunidades.map((o) => o.score.probConversao),
+      oportunidades.map((o) => o.latitude),
+      oportunidades.map((o) => o.longitude),
     ],
   )
 }
@@ -151,26 +163,41 @@ async function buscarOportunidades(
   analiseId: string,
 ): Promise<OportunidadeDTO[]> {
   const result = await client.query(
-    `SELECT id, entidade_alvo_id, tipo, justificativa, gancho_abordagem,
-      prioridade, score_valor, score_similaridade, score_prob_conversao
+    `SELECT id, entidade_alvo_id, entidade_nome, entidade_cidade,
+      nome, endereco, faixa_score,
+      tipo, justificativa, gancho_abordagem,
+      prioridade, score_valor, score_similaridade, score_prob_conversao,
+      latitude, longitude
      FROM oportunidades
      WHERE analise_id = $1
      ORDER BY score_valor DESC`,
     [analiseId],
   )
-  return result.rows.map((row) => ({
-    id: String(row.id),
-    entidadeAlvoId: String(row.entidade_alvo_id),
-    tipo: String(row.tipo),
-    justificativa: String(row.justificativa),
-    ganchoAbordagem: String(row.gancho_abordagem),
-    prioridade: row.prioridade,
-    score: {
-      valor: Number(row.score_valor),
-      similaridade: Number(row.score_similaridade),
-      probConversao: Number(row.score_prob_conversao),
-    },
-  }))
+  return result.rows.map((row) => {
+    const faixaScore = row.faixa_score === 'alta' || row.faixa_score === 'media' ? row.faixa_score : 'baixa'
+    return {
+      id: String(row.id),
+      entidadeAlvoId: String(row.entidade_alvo_id),
+      entidadeNome: String(row.entidade_nome ?? ''),
+      entidadeCidade: String(row.entidade_cidade ?? ''),
+      nome: String(row.nome ?? ''),
+      endereco: String(row.endereco ?? ''),
+      lat: row.latitude != null ? Number(row.latitude) : null,
+      lon: row.longitude != null ? Number(row.longitude) : null,
+      faixaScore,
+      tipo: String(row.tipo),
+      justificativa: String(row.justificativa),
+      ganchoAbordagem: String(row.gancho_abordagem),
+      prioridade: row.prioridade,
+      score: {
+        valor: Number(row.score_valor),
+        similaridade: Number(row.score_similaridade),
+        probConversao: Number(row.score_prob_conversao),
+      },
+      latitude: row.latitude != null ? Number(row.latitude) : null,
+      longitude: row.longitude != null ? Number(row.longitude) : null,
+    }
+  })
 }
 
 function mapAnalise(row: Record<string, unknown>): Omit<AnaliseDTO, 'oportunidades'> {

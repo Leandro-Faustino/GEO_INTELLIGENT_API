@@ -69,11 +69,28 @@ export interface ScoreDTO {
 export interface OportunidadeDTO {
   id: string
   entidadeAlvoId: string
+  // legacy aliases kept for backward compatibility
+  entidadeNome: string
+  entidadeCidade: string
+  latitude: number | null
+  longitude: number | null
+  // canonical map fields (same data, preferred names)
+  nome: string
+  endereco: string
+  lat: number | null
+  lon: number | null
+  faixaScore: 'alta' | 'media' | 'baixa'
   tipo: string
   justificativa: string
   ganchoAbordagem: string
   prioridade: 'alta' | 'media' | 'baixa'
   score: ScoreDTO
+}
+
+export interface CentroMapaDTO {
+  lat: number
+  lon: number
+  zoom: number
 }
 
 export interface AnaliseDTO {
@@ -85,8 +102,27 @@ export interface AnaliseDTO {
   versaoModelo: string
   origem?: 'motor' | 'local'
   oportunidades: OportunidadeDTO[]
+  centroMapa?: CentroMapaDTO | null
   createdAt: string
   updatedAt: string
+}
+
+export interface MapaEntidadeDTO {
+  identificador: string
+  nome: string
+  endereco: string
+  lat: number | null
+  lon: number | null
+  score: number | null
+  faixaScore: 'alta' | 'media' | 'baixa' | null
+  jaCliente: boolean
+}
+
+export interface MapaResponseDTO {
+  analiseId: string
+  centroMapa: CentroMapaDTO | null
+  totalEntidades: number
+  entidades: MapaEntidadeDTO[]
 }
 
 export interface EntregaDTO {

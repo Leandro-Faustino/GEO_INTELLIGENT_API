@@ -314,26 +314,32 @@ function oportunidadesDoMotor(resultado: Record<string, unknown>): OportunidadeD
 
   return oportunidades.map((oportunidade) => {
     const score = objetoCampo(oportunidade, 'score')
+    const scoreValor = numeroCampo(score, 'valor')
+    const lat = Number.isFinite(Number(oportunidade['lat'])) ? Number(oportunidade['lat'])
+      : Number.isFinite(Number(oportunidade['latitude'])) ? Number(oportunidade['latitude']) : null
+    const lon = Number.isFinite(Number(oportunidade['lon'])) ? Number(oportunidade['lon'])
+      : Number.isFinite(Number(oportunidade['longitude'])) ? Number(oportunidade['longitude']) : null
     return {
       id: randomUUID(),
-      entidadeAlvoId: stringCampo(
-        oportunidade,
-        'entidadeAlvoId',
-        'entidade_alvo_id',
-      ),
+      entidadeAlvoId: stringCampo(oportunidade, 'entidadeAlvoId', 'entidade_alvo_id'),
+      entidadeNome: stringCampo(oportunidade, 'entidadeNome', 'entidade_nome'),
+      entidadeCidade: stringCampo(oportunidade, 'entidadeCidade', 'entidade_cidade'),
+      nome: stringCampo(oportunidade, 'nome', 'entidade_nome'),
+      endereco: stringCampo(oportunidade, 'endereco', 'entidade_endereco'),
+      lat,
+      lon,
+      faixaScore: scoreValor >= 0.8 ? 'alta' : scoreValor >= 0.5 ? 'media' : 'baixa',
       tipo: stringCampo(oportunidade, 'tipo'),
       justificativa: stringCampo(oportunidade, 'justificativa'),
-      ganchoAbordagem: stringCampo(
-        oportunidade,
-        'ganchoAbordagem',
-        'gancho_abordagem',
-      ),
+      ganchoAbordagem: stringCampo(oportunidade, 'ganchoAbordagem', 'gancho_abordagem'),
       prioridade: prioridadeCampo(oportunidade),
       score: {
-        valor: numeroCampo(score, 'valor'),
+        valor: scoreValor,
         similaridade: numeroCampo(score, 'similaridade'),
         probConversao: numeroCampo(score, 'probConversao', 'prob_conversao'),
       },
+      latitude: lat,
+      longitude: lon,
     }
   })
 }

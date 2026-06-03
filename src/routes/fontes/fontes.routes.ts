@@ -142,7 +142,9 @@ function resolverAdapter(
     'registro-imoveis': fastify.adapters.registroImoveis,
   }
 
-  return adapters[fonte]
+  const adapter = adapters[fonte]
+  if (!adapter) throw Object.assign(new Error(`Fonte desconhecida: ${fonte}`), { statusCode: 404 })
+  return adapter
 }
 
 export default fontesRoutes

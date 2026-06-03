@@ -5,6 +5,7 @@ import {
   AnaliseListResponse,
   AnaliseResponse,
   ExecutarLookalikeBody,
+  MapaResponseSchema,
 } from '../../schemas/analises/index.js'
 import { ErrorResponse, IdParams } from '../../schemas/shared/index.js'
 import { MotorIndisponivelError } from '../../adapters/motor.client.js'
@@ -45,7 +46,7 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         try {
           const analise = await executarNoMotor(
             fastify,
-            { ...request.body, clienteId: cliente.id, tipoAlvo: request.body.tipoAlvo },
+            { ...request.body, clienteId: cliente.id, ...(request.body.tipoAlvo ? { tipoAlvo: request.body.tipoAlvo } : {}) },
             request.id,
           )
           request.log.info(
@@ -69,6 +70,25 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
           } else {
             throw error
           }
+        }
+      }
+
+      // Populate entity candidates via coleta before local analysis
+      const perfisLocal = await fastify.perfilRepo.buscarPorCliente(cliente.id)
+      const perfilLocal = request.body.perfilId
+        ? perfisLocal.find((p) => p.id === request.body.perfilId)
+        : request.body.tipoAlvo
+          ? (perfisLocal.find((p) => p.tipo === request.body.tipoAlvo) ?? perfisLocal[0])
+          : perfisLocal[0]
+      if (perfilLocal) {
+        const coletadas = await fastify.coletaService.coletar(
+          perfilLocal.criterios,
+          request.body.escopo,
+          200,
+          perfilLocal.tipo,
+        )
+        if (coletadas.length > 0) {
+          await fastify.entidadeAlvoRepo.salvarLote(coletadas)
         }
       }
 
@@ -163,6 +183,53 @@ const analisesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         ...analise,
         totalOportunidades: analise.oportunidades.length,
       }
+    },
+  )
+  fastify.get(
+    '/analises/:id/mapa',
+    {
+      schema: {
+        summary: 'Dados de mapa para uma análise',
+        description:
+          'Retorna todas as entidades do escopo com coordenadas, scores e flag jaCliente para renderização no mapa.',
+        tags: ['Análises'],
+        security: [{ bearerAuth: [] }],
+        params: IdParams,
+        response: { 200: MapaResponseSchema, 404: ErrorResponse },
+      },
+    },
+    async function buscarMapaHandler(request, reply) {
+      const analise = await fastify.analiseRepo.buscarPorId(request.params.id)
+      if (!analise) {
+        return reply.code(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Análise '${request.params.id}' não encontrada.`,
+        })
+      }
+
+      await assertClienteDoUsuario(fastify, analise.clienteId, request.user.sub)
+
+      request.log.info(
+        { analiseId: request.params.id, escopo: analise.escopo },
+        'buscando dados de mapa',
+      )
+
+      const mapa = await fastify.analiseService.buscarDadosMapa(request.params.id)
+      if (!mapa) {
+        return reply.code(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Dados de mapa para análise '${request.params.id}' não encontrados.`,
+        })
+      }
+
+      request.log.info(
+        { analiseId: request.params.id, totalEntidades: mapa.totalEntidades },
+        'dados de mapa retornados',
+      )
+
+      return mapa
     },
   )
 }
