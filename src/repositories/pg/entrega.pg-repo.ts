@@ -7,16 +7,17 @@ export class EntregaPgRepository implements IEntregaRepository {
   async salvar(entrega: EntregaDTO): Promise<EntregaDTO> {
     const result = await this.pool.query(
       `insert into entregas
-        (id, cliente_id, tipo, periodo, formato, total_oportunidades, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+        (id, cliente_id, analise_id, tipo, periodo, formato, total_oportunidades, created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        on conflict (id) do update set
         formato = excluded.formato,
         total_oportunidades = excluded.total_oportunidades,
         updated_at = excluded.updated_at
-       returning id, cliente_id, tipo, periodo, formato, total_oportunidades, created_at, updated_at`,
+       returning id, cliente_id, analise_id, tipo, periodo, formato, total_oportunidades, created_at, updated_at`,
       [
         entrega.id,
         entrega.clienteId,
+        entrega.analiseId ?? null,
         entrega.tipo,
         entrega.periodo,
         entrega.formato,
@@ -29,12 +30,31 @@ export class EntregaPgRepository implements IEntregaRepository {
   }
 
   async buscarPorId(id: string): Promise<EntregaDTO | null> {
-    const result = await this.pool.query(
-      `select id, cliente_id, tipo, periodo, formato, total_oportunidades, created_at, updated_at
-       from entregas where id = $1`,
-      [id],
+    try {
+      const result = await this.pool.query(
+        `select id, cliente_id, analise_id, tipo, periodo, formato, total_oportunidades, created_at, updated_at
+         from entregas where id = $1`,
+        [id],
+      )
+      return result.rows[0] ? mapEntrega(result.rows[0]) : null
+    } catch (err: unknown) {
+      if ((err as { code?: string })?.code === '22P02') return null
+      throw err
+    }
+  }
+
+  async listarPorCliente(clienteId: string, limit: number, offset: number): Promise<{ items: EntregaDTO[]; total: number }> {
+    const countResult = await this.pool.query(
+      'select count(*)::int as total from entregas where cliente_id = $1',
+      [clienteId],
     )
-    return result.rows[0] ? mapEntrega(result.rows[0]) : null
+    const result = await this.pool.query(
+      `select id, cliente_id, analise_id, tipo, periodo, formato, total_oportunidades, created_at, updated_at
+       from entregas where cliente_id = $1
+       order by created_at desc limit $2 offset $3`,
+      [clienteId, limit, offset],
+    )
+    return { items: result.rows.map(mapEntrega), total: countResult.rows[0]?.total ?? 0 }
   }
 }
 
@@ -44,6 +64,7 @@ function mapEntrega(row: Record<string, unknown>): EntregaDTO {
   return {
     id: String(row['id']),
     clienteId: String(row['cliente_id']),
+    analiseId: row['analise_id'] ? String(row['analise_id']) : null,
     tipo: String(row['tipo']),
     periodo: String(row['periodo']),
     formato: String(row['formato']),

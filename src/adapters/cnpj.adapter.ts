@@ -1,60 +1,145 @@
-import { BaseAdapter } from './base-adapter.js'
+import { BaseAdapter, type AdapterOptions } from './base-adapter.js'
+
+const isRealApis = () => process.env['EXTERNAL_APIS_ENABLED'] === 'true'
+
+// Maps CNAE 4-digit prefix to Overpass OSM tags
+const CNAE_OSM: Record<string, Array<{ tag: string; value: string }>> = {
+  '5510': [{ tag: 'tourism', value: 'hotel' }],
+  '5590': [{ tag: 'tourism', value: 'guest_house' }, { tag: 'tourism', value: 'hostel' }],
+  '8630': [{ tag: 'amenity', value: 'clinic' }, { tag: 'amenity', value: 'doctors' }],
+  '8640': [{ tag: 'healthcare', value: 'laboratory' }],
+  '4721': [{ tag: 'shop', value: 'bakery' }],
+  '5611': [{ tag: 'amenity', value: 'restaurant' }],
+  '5612': [{ tag: 'amenity', value: 'fast_food' }],
+}
+
+function cnaeToOsmFilters(cnaes: string[]): Array<{ tag: string; value: string }> {
+  const seen = new Set<string>()
+  const filters: Array<{ tag: string; value: string }> = []
+  for (const cnae of cnaes) {
+    const prefix = cnae.replace(/\D/g, '').slice(0, 4)
+    const mapped = CNAE_OSM[prefix]
+    if (mapped) {
+      for (const f of mapped) {
+        const key = `${f.tag}=${f.value}`
+        if (!seen.has(key)) { seen.add(key); filters.push(f) }
+      }
+    }
+  }
+  return filters.length > 0 ? filters : [{ tag: 'tourism', value: 'hotel' }]
+}
+
+function buildOverpassQuery(filters: Array<{ tag: string; value: string }>, city: string, limit: number): string {
+  const cityArea = city
+    ? `area["name"="${city}"]["boundary"="administrative"]->.a;`
+    : ''
+  const areaRef = city ? '(area.a)' : ''
+  const nodeLines = filters
+    .flatMap(f => [`node["${f.tag}"="${f.value}"]${areaRef};`, `way["${f.tag}"="${f.value}"]${areaRef};`])
+    .join('\n')
+  return `[out:json][timeout:15];${cityArea}(${nodeLines});out center ${limit};`
+}
 
 export class AdaptadorCNPJ extends BaseAdapter {
   readonly nome = 'cnpj-receita-federal'
 
+  constructor(options?: AdapterOptions) {
+    super({ timeoutMs: 30_000, ...options })
+  }
+
   async consultar(
     parametros: Record<string, unknown>,
   ): Promise<Record<string, unknown>[]> {
-    return this.executarProtegido('consultar', async () => {
+    return this.executarProtegido('consultar', async (signal) => {
       const cnaes = Array.isArray(parametros['cnaes'])
         ? parametros['cnaes'].map(String)
-        : []
+        : parametros['cnae'] ? [String(parametros['cnae'])] : []
       const municipio = String(parametros['municipio'] ?? '')
-      const limit = Number(parametros['limit'] ?? 100)
+      const limit = Number(parametros['limit'] ?? 20)
+      const safeLimit = Number.isFinite(limit) ? Math.min(limit, 50) : 20
 
-      return mockEmpresas
-        .filter((empresa) => {
-          const cnaeOk = cnaes.length === 0 || cnaes.includes(empresa.cnae)
-          const municipioOk =
-            !municipio ||
-            empresa.municipio.toLocaleLowerCase('pt-BR').includes(
-              municipio.toLocaleLowerCase('pt-BR'),
-            )
-          return cnaeOk && municipioOk
-        })
-        .slice(0, Number.isFinite(limit) ? limit : 100)
-        .map((empresa) => ({
-          identificador: empresa.identificador,
-          nome: empresa.nome,
+      if (!isRealApis()) return []
+
+      const filters = cnaeToOsmFilters(cnaes)
+      const query = buildOverpassQuery(filters, municipio, safeLimit)
+
+      const res = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'GeoLeadApp/1.0 (leandrofaustino88@gmail.com)',
+        },
+        body: `data=${encodeURIComponent(query)}`,
+        signal,
+      })
+
+      if (!res.ok) throw Object.assign(new Error(`Overpass API: ${res.status}`), { statusCode: 502 })
+
+      const data = await res.json() as {
+        elements: Array<{
+          id: number; type: string; tags?: Record<string, string>
+          lat?: number; lon?: number; center?: { lat: number; lon: number }
+        }>
+      }
+
+      const cnaeCode = cnaes[0] ?? filters[0] ? `${filters[0]!.tag}:${filters[0]!.value}` : 'generico'
+
+      return data.elements.map((e) => {
+        const tags = e.tags ?? {}
+        const lat = e.lat ?? e.center?.lat ?? 0
+        const lon = e.lon ?? e.center?.lon ?? 0
+        const nome = tags['name'] ?? tags['brand'] ?? 'Empresa sem nome'
+        const cidade = tags['addr:city'] ?? municipio
+        const rua = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(', ')
+        return {
+          identificador: `osm-${e.type}-${e.id}`,
+          nome,
           tipo: 'pj',
-          endereco: empresa.endereco,
-          latitude: empresa.latitude,
-          longitude: empresa.longitude,
+          endereco: rua ? `${rua}, ${cidade}` : cidade,
+          latitude: lat,
+          longitude: lon,
           fonte: this.nome,
           atributos: {
-            cnae: empresa.cnae,
-            porte: empresa.porte,
-            idadeAnos: empresa.idadeAnos,
-            municipio: empresa.municipio,
+            cnae: cnaeCode,
+            porte: 'nao-informado',
+            municipio: cidade,
+            osmId: e.id,
           },
-        }))
+        }
+      })
     })
   }
 
   async enriquecer(identificador: string): Promise<Record<string, unknown>> {
-    return this.executarProtegido('enriquecer', async () => {
-      const empresa = mockEmpresas.find((item) => item.identificador === identificador)
+    return this.executarProtegido('enriquecer', async (signal) => {
+      const cnpjClean = identificador.replace(/\D/g, '')
 
+      if (!isRealApis() || cnpjClean.length !== 14) {
+        return { identificador, fonte: this.nome, enriquecidoEm: new Date().toISOString() }
+      }
+
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjClean}`, {
+        headers: { 'User-Agent': 'GeoLeadApp/1.0' },
+        signal,
+      })
+      if (!res.ok) throw Object.assign(new Error(`BrasilAPI CNPJ: ${res.status}`), { statusCode: res.status >= 500 ? 502 : res.status })
+
+      const d = await res.json() as Record<string, unknown>
       return {
         identificador,
-        razaoSocial: empresa?.nome ?? `Empresa ${identificador}`,
-        situacao: 'ATIVA',
-        dataAbertura: '2018-03-15',
-        naturezaJuridica: '206-2 - Sociedade Limitada',
-        capitalSocial: 150_000,
-        porte: empresa?.porte ?? 'EPP',
-        cnaePrincipal: empresa?.cnae ?? '5510801',
+        cnpj: d['cnpj'],
+        razaoSocial: d['razao_social'],
+        nomeFantasia: d['nome_fantasia'] || null,
+        situacao: d['descricao_situacao_cadastral'],
+        dataAbertura: d['data_inicio_atividade'],
+        naturezaJuridica: d['natureza_juridica'],
+        capitalSocial: d['capital_social'],
+        porte: d['porte'],
+        cnaePrincipal: d['cnae_fiscal'],
+        cnaeDescricao: d['cnae_fiscal_descricao'],
+        municipio: d['municipio'],
+        uf: d['uf'],
+        logradouro: `${d['logradouro'] ?? ''} ${d['numero'] ?? ''}`.trim(),
         fonte: this.nome,
         enriquecidoEm: new Date().toISOString(),
       }
@@ -63,72 +148,3 @@ export class AdaptadorCNPJ extends BaseAdapter {
 }
 
 export class CnpjAdapter extends AdaptadorCNPJ {}
-
-const mockEmpresas = [
-  {
-    identificador: 'cnpj-001',
-    nome: 'Hotel Panorama',
-    cnae: '5510801',
-    porte: 3,
-    idadeAnos: 7,
-    municipio: 'Joinville',
-    endereco: 'Rua das Palmeiras, 120',
-    latitude: -26.304,
-    longitude: -48.846,
-  },
-  {
-    identificador: 'cnpj-002',
-    nome: 'Hotel Top Class',
-    cnae: '5510801',
-    porte: 2,
-    idadeAnos: 4,
-    municipio: 'Joinville',
-    endereco: 'Av. Brasil, 890',
-    latitude: -26.31,
-    longitude: -48.85,
-  },
-  {
-    identificador: 'cnpj-003',
-    nome: 'Pousada Refugio',
-    cnae: '5510801',
-    porte: 1,
-    idadeAnos: 2,
-    municipio: 'Joinville',
-    endereco: 'Rua Jaguaruna, 45',
-    latitude: -26.29,
-    longitude: -48.83,
-  },
-  {
-    identificador: 'cnpj-004',
-    nome: 'ILPI Lar Esperanca',
-    cnae: '8711501',
-    porte: 3,
-    idadeAnos: 10,
-    municipio: 'Joinville',
-    endereco: 'Rua XV de Novembro, 300',
-    latitude: -26.3,
-    longitude: -48.84,
-  },
-  {
-    identificador: 'cnpj-005',
-    nome: 'Padaria Central',
-    cnae: '4721102',
-    porte: 1,
-    idadeAnos: 20,
-    municipio: 'Joinville',
-    endereco: 'Rua do Comercio, 55',
-    latitude: -26.305,
-    longitude: -48.845,
-  },
-  {
-    identificador: 'cnpj-006',
-    nome: 'Hotel Marina Bay',
-    cnae: '5510801',
-    porte: 4,
-    idadeAnos: 15,
-    municipio: 'Florianopolis',
-    endereco: 'Av. Beira Mar, 1500',
-    latitude: -27.59,
-    longitude: -48.55,
-  },
-]

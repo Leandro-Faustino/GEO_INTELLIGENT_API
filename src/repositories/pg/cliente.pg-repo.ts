@@ -35,13 +35,23 @@ export class ClientePgRepository implements IClienteRepository {
   }
 
   async buscarPorId(id: string): Promise<ClienteDTO | null> {
-    const result = await this.pool.query(
-      `select id, razao_social, segmento, cidade, endereco, vertical,
-        parametros_negocio, created_at, updated_at
-       from clientes where id = $1`,
-      [id],
-    )
-    return result.rows[0] ? mapCliente(result.rows[0]) : null
+    try {
+      const result = await this.pool.query(
+        `select id, razao_social, segmento, cidade, endereco, vertical,
+          parametros_negocio, created_at, updated_at
+         from clientes where id = $1`,
+        [id],
+      )
+      return result.rows[0] ? mapCliente(result.rows[0]) : null
+    } catch (err: unknown) {
+      if ((err as { code?: string })?.code === '22P02') return null
+      throw err
+    }
+  }
+
+  async contarTodos(): Promise<number> {
+    const result = await this.pool.query('select count(*)::int as total from clientes')
+    return result.rows[0]?.total ?? 0
   }
 
   async listar(limit: number, offset: number): Promise<{ items: ClienteDTO[]; total: number }> {

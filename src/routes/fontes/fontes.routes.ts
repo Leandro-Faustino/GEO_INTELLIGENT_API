@@ -25,17 +25,25 @@ const fontesRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> =
           200: Type.Array(
             Type.Object({
               nome: Type.String(),
+              modo: Type.String(),
               circuitState: Type.String(),
+              consecutiveFailures: Type.Integer(),
             }),
           ),
         },
       },
     },
     async () =>
-      fastify.adapters.todas.map((adapter) => ({
-        nome: adapter.nome,
-        circuitState: (adapter as { circuitState?: string }).circuitState ?? 'unknown',
-      })),
+      fastify.adapters.todas.map((adapter) => {
+        const raw = (adapter as { circuitState?: string }).circuitState ?? 'closed'
+        const circuitState = raw.replace('-', '_').toUpperCase()
+        return {
+          nome: adapter.nome,
+          modo: 'mock',
+          circuitState,
+          consecutiveFailures: 0,
+        }
+      }),
   )
 
   fastify.post(

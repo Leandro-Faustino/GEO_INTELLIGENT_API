@@ -7,6 +7,7 @@ import { Timestamps } from '../shared/index.js'
 export const MontarEntregaBody = Type.Object(
   {
     clienteId: Type.String({ minLength: 1 }),
+    analiseId: Type.Optional(Type.String({ minLength: 1 })),
     periodo: Type.String({ minLength: 1, maxLength: 50 }),
     formato: Type.String({
       enum: ['planilha', 'pdf', 'dashboard', 'api'],
@@ -52,6 +53,8 @@ export const FeedbackBody = Type.Object(
 export const EntregaResponse = Type.Object(
   {
     id: Type.String(),
+    clienteId: Type.String(),
+    analiseId: Type.Union([Type.String(), Type.Null()]),
     tipo: Type.String(),
     periodo: Type.String(),
     formato: Type.String(),

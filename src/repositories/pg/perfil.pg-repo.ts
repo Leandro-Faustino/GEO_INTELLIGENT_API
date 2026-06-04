@@ -67,16 +67,20 @@ export class PerfilPgRepository implements IPerfilRepository {
   }
 
   async buscarPorId(id: string): Promise<PerfilIdealDTO | null> {
-    const result = await this.pool.query(
-      `select id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at
-       from perfis_ideais where id = $1`,
-      [id],
-    )
-    if (!result.rows[0]) return null
-
-    return {
-      ...mapPerfil(result.rows[0]),
-      criterios: await this.buscarCriterios(id),
+    try {
+      const result = await this.pool.query(
+        `select id, cliente_id, nome, tipo, hipotetico, exclusoes, created_at, updated_at
+         from perfis_ideais where id = $1`,
+        [id],
+      )
+      if (!result.rows[0]) return null
+      return {
+        ...mapPerfil(result.rows[0]),
+        criterios: await this.buscarCriterios(id),
+      }
+    } catch (err: unknown) {
+      if ((err as { code?: string })?.code === '22P02') return null
+      throw err
     }
   }
 

@@ -17,6 +17,7 @@ export class EntregaService {
     return this.entregas.salvar({
       id: randomUUID(),
       clienteId,
+      analiseId: null,
       tipo: 'lookalike',
       periodo,
       formato,

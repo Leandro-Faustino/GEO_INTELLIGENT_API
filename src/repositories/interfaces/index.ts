@@ -89,6 +89,7 @@ export interface AnaliseDTO {
 export interface EntregaDTO {
   id: string
   clienteId: string
+  analiseId: string | null
   tipo: string
   periodo: string
   formato: string
@@ -101,6 +102,7 @@ export interface IClienteRepository {
   salvar(cliente: ClienteDTO): Promise<ClienteDTO>
   buscarPorId(id: string): Promise<ClienteDTO | null>
   listar(limit: number, offset: number): Promise<{ items: ClienteDTO[]; total: number }>
+  contarTodos(): Promise<number>
 }
 
 export interface IBaseInternaRepository {
@@ -122,9 +124,12 @@ export interface IEntidadeAlvoRepository {
 export interface IAnaliseRepository {
   salvar(analise: AnaliseDTO): Promise<AnaliseDTO>
   buscarPorId(id: string): Promise<AnaliseDTO | null>
+  listarPorCliente(clienteId: string, limit: number, offset: number): Promise<{ items: AnaliseDTO[]; total: number }>
+  contarTodos(): Promise<number>
 }
 
 export interface IEntregaRepository {
   salvar(entrega: EntregaDTO): Promise<EntregaDTO>
   buscarPorId(id: string): Promise<EntregaDTO | null>
+  listarPorCliente(clienteId: string, limit: number, offset: number): Promise<{ items: EntregaDTO[]; total: number }>
 }

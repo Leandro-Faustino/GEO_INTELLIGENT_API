@@ -30,6 +30,10 @@ export class MemoryClienteRepo implements IClienteRepository {
     return item ? clone(item) : null
   }
 
+  async contarTodos(): Promise<number> {
+    return this.items.size
+  }
+
   async listar(limit: number, offset: number): Promise<{ items: ClienteDTO[]; total: number }> {
     const all = [...this.items.values()].sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt),
@@ -115,19 +119,37 @@ export class MemoryAnaliseRepo implements IAnaliseRepository {
     const item = this.items.get(id)
     return item ? clone(item) : null
   }
+
+  async contarTodos(): Promise<number> {
+    return this.items.size
+  }
+
+  async listarPorCliente(clienteId: string, limit: number, offset: number): Promise<{ items: AnaliseDTO[]; total: number }> {
+    const all = [...this.items.values()]
+      .filter((a) => a.clienteId === clienteId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return { items: clone(all.slice(offset, offset + limit)), total: all.length }
+  }
 }
 
 export class MemoryEntregaRepo implements IEntregaRepository {
   private readonly items = new Map<string, EntregaDTO>()
 
   async salvar(entrega: EntregaDTO): Promise<EntregaDTO> {
-    this.items.set(entrega.id, clone(entrega))
+    this.items.set(entrega.id, clone({ ...entrega, analiseId: entrega.analiseId ?? null }))
     return clone(entrega)
   }
 
   async buscarPorId(id: string): Promise<EntregaDTO | null> {
     const item = this.items.get(id)
     return item ? clone(item) : null
+  }
+
+  async listarPorCliente(clienteId: string, limit: number, offset: number): Promise<{ items: EntregaDTO[]; total: number }> {
+    const all = [...this.items.values()]
+      .filter((e) => e.clienteId === clienteId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    return { items: clone(all.slice(offset, offset + limit)), total: all.length }
   }
 }
 

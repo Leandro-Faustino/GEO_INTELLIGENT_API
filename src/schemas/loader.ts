@@ -4,6 +4,8 @@ import { clienteSchemas } from './clientes/index.js'
 import { perfilSchemas } from './perfis/index.js'
 import { analiseSchemas } from './analises/index.js'
 import { entregaSchemas } from './entregas/index.js'
+import { prospectsSchemas } from './prospects/index.js'
+import { targetingSchemas } from './targeting/index.js'
 
 const schemas = [
   ...sharedSchemas,
@@ -11,6 +13,8 @@ const schemas = [
   ...perfilSchemas,
   ...analiseSchemas,
   ...entregaSchemas,
+  ...prospectsSchemas,
+  ...targetingSchemas,
 ]
 
 export default fp(

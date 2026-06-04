@@ -25,13 +25,32 @@ export class DerivacaoService {
       })
     }
 
-    const bonsCompradores = base.compradores.filter(
+    const doTipo = base.compradores.filter(
+      (comprador) => comprador.tipo === tipoAlvo,
+    )
+
+    if (doTipo.length === 0) {
+      const composicao = this.calcularComposicao(base.compradores)
+      const disponiveis = Object.entries(composicao)
+        .map(([tipo, qtd]) => `${qtd} ${tipo.toUpperCase()}`)
+        .join(', ')
+      throw Object.assign(
+        new Error(
+          `Nenhum comprador do tipo '${tipoAlvo}' encontrado na base. ` +
+            `Composição da base: ${disponiveis}.`,
+        ),
+        { statusCode: 422 },
+      )
+    }
+
+    const bonsCompradores = doTipo.filter(
       (comprador) => comprador.ativo && comprador.frequencia >= 2,
     )
     if (bonsCompradores.length < 3) {
       throw Object.assign(
         new Error(
-          `Mínimo de 3 compradores com recompra. Encontrados: ${bonsCompradores.length}.`,
+          `Mínimo de 3 compradores ${tipoAlvo.toUpperCase()} ativos com recompra. ` +
+            `Encontrados: ${bonsCompradores.length} (de ${doTipo.length} ${tipoAlvo.toUpperCase()} na base).`,
         ),
         { statusCode: 422 },
       )
@@ -64,6 +83,16 @@ export class DerivacaoService {
       createdAt: now,
       updatedAt: now,
     })
+  }
+
+  calcularComposicao(
+    compradores: CompradorConhecidoDTO[],
+  ): Record<string, number> {
+    const composicao: Record<string, number> = {}
+    for (const c of compradores) {
+      composicao[c.tipo] = (composicao[c.tipo] ?? 0) + 1
+    }
+    return composicao
   }
 
   private extrairCriterios(

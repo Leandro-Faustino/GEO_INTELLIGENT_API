@@ -23,6 +23,7 @@ import type {
 } from '../repositories/interfaces/index.js'
 import { AnaliseService } from '../services/analise.service.js'
 import { DerivacaoService } from '../services/derivacao.service.js'
+import { TargetingService } from '../services/targeting.service.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -34,6 +35,7 @@ declare module 'fastify' {
     readonly entregaRepo: IEntregaRepository
     readonly derivacaoService: DerivacaoService
     readonly analiseService: AnaliseService
+    readonly targetingService: TargetingService
   }
 }
 
@@ -81,6 +83,7 @@ export default fp(
       'analiseService',
       new AnaliseService(perfilRepo, entidadeAlvoRepo, baseInternaRepo, analiseRepo),
     )
+    fastify.decorate('targetingService', new TargetingService(analiseRepo, entidadeAlvoRepo))
 
     fastify.log.info(
       {

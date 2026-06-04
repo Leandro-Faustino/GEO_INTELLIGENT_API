@@ -20,19 +20,9 @@ const users: AppUser[] = [
     password: 'alice-secret-123',
     role: 'user',
   },
-  { id: 'u2', email: 'bob@example.com', password: 'bob-secret-456', role: 'user' },
-  {
-    id: 'admin1',
-    email: 'root@example.com',
-    password: 'admin-secret-789',
-    role: 'admin',
-  },
 ]
 
-const documents: SecretDocument[] = [
-  { id: 'd1', ownerId: 'u1', content: 'Diario privado da Alice' },
-  { id: 'd2', ownerId: 'u2', content: 'Notas confidenciais do Bob' },
-]
+const documents: SecretDocument[] = []
 
 export function findUserByCredentials(
   email: string,

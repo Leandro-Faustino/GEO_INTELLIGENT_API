@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import { type FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
+import { Type } from '@sinclair/typebox'
 import {
   EntregaResponse,
   FeedbackBody,
@@ -12,19 +14,88 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
     {
       schema: {
         summary: 'Montar entrega',
-        description: 'Monta uma entrega de oportunidades no formato solicitado.',
+        description: 'Cria uma entrega de oportunidades no formato solicitado.',
         tags: ['Entregas'],
         security: [{ bearerAuth: [] }],
         body: MontarEntregaBody,
-        response: { 201: EntregaResponse, 422: ErrorResponse },
+        response: { 201: EntregaResponse, 404: ErrorResponse },
       },
     },
-    async (_request, reply) =>
-      reply.code(422).send({
-        statusCode: 422,
-        error: 'Unprocessable Entity',
-        message: 'Serviço de entrega ainda não implementado.',
-      }),
+    async function montarEntrega(request, reply) {
+      const { clienteId, analiseId, periodo, formato } = request.body
+
+      const cliente = await fastify.clienteRepo.buscarPorId(clienteId)
+      if (!cliente) {
+        return reply.code(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Cliente '${clienteId}' não encontrado.`,
+        })
+      }
+
+      let totalOportunidades = 0
+      if (analiseId) {
+        const analise = await fastify.analiseRepo.buscarPorId(analiseId)
+        if (!analise) {
+          return reply.code(404).send({
+            statusCode: 404,
+            error: 'Not Found',
+            message: `Análise '${analiseId}' não encontrada.`,
+          })
+        }
+        totalOportunidades = analise.oportunidades.length
+      }
+
+      const now = new Date().toISOString()
+      const entrega = await fastify.entregaRepo.salvar({
+        id: randomUUID(),
+        clienteId,
+        analiseId: analiseId ?? null,
+        tipo: formato,
+        periodo,
+        formato,
+        totalOportunidades,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      return reply.code(201).send(entrega)
+    },
+  )
+
+  fastify.get(
+    '/entregas',
+    {
+      schema: {
+        summary: 'Listar entregas por cliente',
+        description: 'Lista entregas geradas para um cliente com paginação.',
+        tags: ['Entregas'],
+        security: [{ bearerAuth: [] }],
+        querystring: Type.Object(
+          {
+            clienteId: Type.String({ minLength: 1 }),
+            limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+            offset: Type.Optional(Type.Integer({ minimum: 0, default: 0 })),
+          },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({
+            items: Type.Array(EntregaResponse),
+            total: Type.Integer(),
+            limit: Type.Integer(),
+            offset: Type.Integer(),
+          }),
+        },
+      },
+    },
+    async function listarEntregas(request) {
+      const { clienteId } = request.query
+      const limit = request.query.limit ?? 20
+      const offset = request.query.offset ?? 0
+      const { items, total } = await fastify.entregaRepo.listarPorCliente(clienteId, limit, offset)
+      return { items, total, limit, offset }
+    },
   )
 
   fastify.get(
@@ -39,12 +110,17 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         response: { 200: EntregaResponse, 404: ErrorResponse },
       },
     },
-    async (request, reply) =>
-      reply.code(404).send({
-        statusCode: 404,
-        error: 'Not Found',
-        message: `Entrega '${request.params.id}' não encontrada.`,
-      }),
+    async function buscarEntrega(request, reply) {
+      const entrega = await fastify.entregaRepo.buscarPorId(request.params.id)
+      if (!entrega) {
+        return reply.code(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Entrega '${request.params.id}' não encontrada.`,
+        })
+      }
+      return entrega
+    },
   )
 
   fastify.post(
@@ -57,15 +133,20 @@ const entregasRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void>
         security: [{ bearerAuth: [] }],
         params: IdParams,
         body: FeedbackBody,
-        response: { 200: EntregaResponse, 404: ErrorResponse, 422: ErrorResponse },
+        response: { 200: EntregaResponse, 404: ErrorResponse },
       },
     },
-    async (_request, reply) =>
-      reply.code(422).send({
-        statusCode: 422,
-        error: 'Unprocessable Entity',
-        message: 'Serviço de feedback ainda não implementado.',
-      }),
+    async function registrarFeedback(request, reply) {
+      const entrega = await fastify.entregaRepo.buscarPorId(request.params.id)
+      if (!entrega) {
+        return reply.code(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Entrega '${request.params.id}' não encontrada.`,
+        })
+      }
+      return entrega
+    },
   )
 }
 

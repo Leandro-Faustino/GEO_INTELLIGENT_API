@@ -66,17 +66,46 @@ export class AnalisePgRepository implements IAnaliseRepository {
   }
 
   async buscarPorId(id: string): Promise<AnaliseDTO | null> {
+    try {
+      const result = await this.pool.query(
+        `select id, cliente_id, tipo, escopo, versao_modelo, created_at, updated_at
+         from analises where id = $1`,
+        [id],
+      )
+      if (!result.rows[0]) return null
+      return {
+        ...mapAnalise(result.rows[0]),
+        oportunidades: await this.buscarOportunidades(id),
+      }
+    } catch (err: unknown) {
+      if ((err as { code?: string })?.code === '22P02') return null
+      throw err
+    }
+  }
+
+  async contarTodos(): Promise<number> {
+    const result = await this.pool.query('select count(*)::int as total from analises')
+    return result.rows[0]?.total ?? 0
+  }
+
+  async listarPorCliente(clienteId: string, limit: number, offset: number): Promise<{ items: AnaliseDTO[]; total: number }> {
+    const countResult = await this.pool.query(
+      'select count(*)::int as total from analises where cliente_id = $1',
+      [clienteId],
+    )
     const result = await this.pool.query(
       `select id, cliente_id, tipo, escopo, versao_modelo, created_at, updated_at
-       from analises where id = $1`,
-      [id],
+       from analises where cliente_id = $1
+       order by created_at desc limit $2 offset $3`,
+      [clienteId, limit, offset],
     )
-    if (!result.rows[0]) return null
-
-    return {
-      ...mapAnalise(result.rows[0]),
-      oportunidades: await this.buscarOportunidades(id),
-    }
+    const items = await Promise.all(
+      result.rows.map(async (row) => ({
+        ...mapAnalise(row),
+        oportunidades: await this.buscarOportunidades(String(row['id'])),
+      })),
+    )
+    return { items, total: countResult.rows[0]?.total ?? 0 }
   }
 
   private async buscarOportunidades(analiseId: string): Promise<OportunidadeDTO[]> {
