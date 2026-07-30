@@ -76,7 +76,7 @@ export function criarHashSenhaScrypt(
   return `scrypt$${n}$${r}$${p}$${Buffer.from(salt).toString('hex')}$${hash}`
 }
 
-function verificarSenhaScrypt(password: string, encoded: string): boolean {
+export function verificarSenhaScrypt(password: string, encoded: string): boolean {
   const [alg, n, r, p, saltHex, hashHex] = encoded.split('$')
   if (alg !== 'scrypt' || !n || !r || !p || !saltHex || !hashHex) return false
 
