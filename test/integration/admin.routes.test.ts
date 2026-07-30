@@ -34,3 +34,43 @@ test('admin: admin acessa /admin/stats', async () => {
     await app.close()
   }
 })
+
+test('admin: usuario criado via repositorio consegue autenticar', async () => {
+  const app = await buildTestApp()
+  try {
+    const adminToken = await loginAs(app, 'root@example.com', 'admin-secret-789')
+    const email = 'novo.usuario@example.com'
+    const senha = 'senha-criada-123'
+
+    const criado = await app.inject({
+      method: 'POST',
+      url: '/admin/usuarios',
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { email, senha, role: 'user' },
+    })
+
+    assert.equal(criado.statusCode, 201)
+    const usuario = criado.json<{ id: string; role: string }>()
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email, password: senha },
+    })
+
+    assert.equal(login.statusCode, 200)
+    const token = login.json<{ token: string }>().token
+    assert.equal(typeof token, 'string')
+
+    const me = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: { authorization: `Bearer ${token}` },
+    })
+
+    assert.equal(me.statusCode, 200)
+    assert.deepEqual(me.json(), { sub: usuario.id, role: usuario.role })
+  } finally {
+    await app.close()
+  }
+})
