@@ -1,6 +1,9 @@
 import { type FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
-import { findUserByCredentials } from '../../security/user-store.js'
+import {
+  findUserByCredentials,
+  verificarSenhaScrypt,
+} from '../../security/user-store.js'
 
 const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => {
   fastify.post(
@@ -37,7 +40,17 @@ const authRoutes: FastifyPluginAsyncTypebox = async (fastify): Promise<void> => 
     async function loginHandler(request, reply) {
       const { email, password } = request.body
       request.log.info({ email }, 'tentativa de autenticacao recebida')
-      const user = findUserByCredentials(email, password, fastify.config)
+
+      const persistedUser = await fastify.usuarioRepo.buscarPorEmail(email)
+      const user = persistedUser
+        ? verificarSenhaScrypt(password, persistedUser.senhaHash)
+          ? {
+              id: persistedUser.id,
+              email: persistedUser.email,
+              role: persistedUser.role,
+            }
+          : undefined
+        : findUserByCredentials(email, password, fastify.config)
 
       if (!user) {
         request.log.warn({ email, ip: request.ip }, 'falha de autenticacao')
