@@ -56,3 +56,15 @@ test('persistencia: schema versionado mantem politicas de RLS nos agregados rela
   assert.match(sql, /alter table alertas enable row level security/i)
   assert.match(sql, /current_setting\('app\.current_cliente_id', true\)::uuid/i)
 })
+
+test('persistencia: enriquecimentos concede permissao ao role da aplicacao', () => {
+  const migration = carregarMigrations().find(
+    (item) => item.nome === '006-enriquecimentos-compradores.sql',
+  )
+
+  assert.ok(migration)
+  assert.match(
+    migration.sql,
+    /grant\s+select,\s*insert,\s*update,\s*delete\s+on\s+enriquecimentos_compradores\s+to\s+geolead_app/i,
+  )
+})
